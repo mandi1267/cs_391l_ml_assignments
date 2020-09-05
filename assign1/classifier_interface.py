@@ -21,7 +21,7 @@ class Classifier(object):
     def testClassifier(self, test_data, test_labels):
 
         # Compute the output label for each sample based on the particular classifier type
-        output_labels = np.apply_along_axis(self.classifySample, 1, test_data)
+        output_labels = np.apply_along_axis(self.classifySample, 0, test_data)
 
         # Compute the difference between the actual labels and the labels
         # output by the classifier

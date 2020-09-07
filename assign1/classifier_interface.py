@@ -1,5 +1,6 @@
 from functools import partial
 import numpy as np
+import time
 
 
 class Classifier(object):
@@ -20,6 +21,8 @@ class Classifier(object):
     # TODO should this be in classifier or outside
     def testClassifier(self, test_data, test_labels):
 
+        classifier_start = time.time()
+
         # Compute the output label for each sample based on the particular classifier type
         output_labels = np.apply_along_axis(self.classifySample, 0, test_data)
 
@@ -38,7 +41,10 @@ class Classifier(object):
         error_rate = float(incorrect_classification_count) / np.shape(test_labels)[0]
 
         # TODO what do we want to return? Just error rate? Time to evaluate?
-        return error_rate
+        end_time = time.time()
+
+        time_per_sample = (end_time - classifier_start) / test_labels.size
+        return (error_rate, time_per_sample)
 
 
     def classifySample(self, sample):

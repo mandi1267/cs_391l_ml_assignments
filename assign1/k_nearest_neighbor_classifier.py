@@ -28,10 +28,12 @@ class KNearestNeighborClassifier(Classifier):
         # print("Combined")
         # print(combined_dist_and_label)
 
-        sorted_dist_and_label = combined_dist_and_label[(-1 * combined_dist_and_label[:, 0]).argsort()]
+        sorted_dist_and_label = combined_dist_and_label[(combined_dist_and_label[:, 0]).argsort()]
         # print("Sorted")
         # print(sorted_dist_and_label)
-        # TODO is this sorting correctly (or do we need to take the k last numbers)
+
+        # Get the first labels of the k closest training points
+        # List is sorted in ascending order, so these will be the first k entries
         k_highest_labels = sorted_dist_and_label[:self.num_neighbors, 1:]
         # print(k_highest_labels)
         # print("Mode")

@@ -1,20 +1,23 @@
 
 from k_nearest_neighbor_classifier import *
 from mnist_reader import *
+from display_utils import *
 import matplotlib.pyplot as plt
 import csv
 
 import numpy as np
 from math import ceil
+from math import floor
 import sys
 import datetime
 
 class KnnResults:
-    def __init__(self, num_training_samples, num_principal_components, num_nearest_neighbors, error_rate):
+    def __init__(self, num_training_samples, num_principal_components, num_nearest_neighbors, error_rate, classification_time_per_sample):
         self.num_training_samples = num_training_samples
         self.num_principal_components = num_principal_components
         self.num_nearest_neighbors = num_nearest_neighbors
         self.error_rate = error_rate
+        self.classification_time_per_sample = classification_time_per_sample
 
 def hw1FindEigendigits(training_data):
     """
@@ -96,20 +99,7 @@ def transformToEigenRepresentation(mean_feature_vec, eigenvals_of_training, data
     mean_subtracted_data = data_to_eval - mean_feature_vec[:, None]
     return np.transpose(np.transpose(mean_subtracted_data).dot(eigenvals_of_training))
 
-def convertImageToVector(image_array):
-    # todo
-    pass
 
-def convertVectorToImage(image, num_rows, num_columns):
-    return image.reshape(num_rows, num_columns)
-
-def displayImage(image_data, true_label, classified_label=None):
-    title_str = "Label: " + str(true_label)
-    if (classified_label is not None):
-        title_str = title_str + str(classified_label)
-    plt.title(title_str)
-    plt.imshow(image_data, interpolation='none')
-    plt.show()
 
 def getRandomSubsetOfData(data, labels, number_of_samples_to_return):
     indices = np.random.choice(labels.size, number_of_samples_to_return, replace=False)
@@ -164,7 +154,7 @@ def plotResults(k_nn_results):
     plt.title("Best Error Rates Across All Training Set Sizes and Neighbor Values by Number of Principal Components")
     plt.show()
 
-    plt.plot(feature_count_values, error_rate_by_feature_count)
+    plt.plot(nearest_neighbor_values, error_rate_by_num_nearest_neighbor)
     plt.xlabel("Number of nearest neighbors")
     plt.ylabel("Error rate")
     plt.title("Best Error Rates Across All Training Set Sizes and Counts of Principal Component by Number of Nearest Neighbors")
@@ -172,14 +162,12 @@ def plotResults(k_nn_results):
 
 def writeResultsToFile(k_nn_results, output_file_name):
     with open(output_file_name, 'w') as results_file:
-        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "error_rate"]
+        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "error_rate", "classification_time_per_sample"]
         csv_writer = csv.writer(results_file, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(header_line)
         for result in k_nn_results:
-            csv_writer.writerow([result.num_training_samples, result.num_principal_components, result.num_nearest_neighbors, result.error_rate])
+            csv_writer.writerow([result.num_training_samples, result.num_principal_components, result.num_nearest_neighbors, result.error_rate, result.classification_time_per_sample])
 
-# Using the special variable
-# __name__
 if __name__=="__main__":
 
     if (len(sys.argv) >= 5):
@@ -224,6 +212,7 @@ if __name__=="__main__":
     num_training_size_increment = 50
     num_samples_to_use = [min(num_training_size_increment * i, img_vector_size)  for i in range(1, 1 + ceil(img_vector_size / num_training_size_increment))]
     # num_samples_to_use = [784]
+    # num_samples_to_use = [105]
     print(num_samples_to_use)
 
     test_data_subset, test_label_subset = getRandomSubsetOfData(training_data, training_labels, 1000)
@@ -233,6 +222,7 @@ if __name__=="__main__":
     # Make map where outer key is training set size,
 
     k_nn_results = []
+    results_by_feature_count = {}
 
     for train_sample_size in num_samples_to_use:
         train_data_subset, train_label_subset = getRandomSubsetOfData(training_data, training_labels, train_sample_size)
@@ -240,8 +230,18 @@ if __name__=="__main__":
 
         print("Training sample size " + str(train_sample_size))
 
-        feature_count_inc_size = 20
-        num_features_to_try = [min(feature_count_inc_size * i, train_sample_size) for i in range(1, 1 + ceil(train_sample_size /feature_count_inc_size))]
+        feature_count_inc_size = 25
+
+        max_single_inc_range = 30
+        max_small_inc_range = 75
+        small_inc = 5
+
+        num_features_to_try = [i + 1 for i in range(max_single_inc_range) if i < train_sample_size]
+        num_features_to_try.extend([i for i in range(max_single_inc_range + small_inc, max_small_inc_range, small_inc) if i < train_sample_size])
+        if (train_sample_size >= max_small_inc_range):
+            num_features_to_try.extend([i for i in range(max_small_inc_range, train_sample_size + 1, feature_count_inc_size)])
+            if (train_sample_size not in num_features_to_try):
+                num_features_to_try.append(train_sample_size)
         # num_features_to_try = [10, 20]
 
         # Find the eigenvector representation from the training data
@@ -250,24 +250,23 @@ if __name__=="__main__":
         print("Features to try")
         print(num_features_to_try)
 
-        results_by_feature_count = {}
-
         for feature_count in num_features_to_try:
-            print("Feature count " + str(feature_count))
+            print("Train sample size: " + str(train_sample_size) + ", Feature count " + str(feature_count))
             reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count]
             transformed_training_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, train_data_subset)
-            print("Tranformed training data")
-            print(transformed_training_data)
 
             # Also transform the test data
             transformed_test_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, test_data_subset)
-            print("Transformed test data")
-            print(transformed_test_data)
-            print(transformed_test_data.shape)
 
             # Construct classifiers to evaluate
             k_val_inc = 5
-            k_vals_to_try = [min(k_val_inc * i, feature_count) for i in range(1, 1 + ceil(feature_count / k_val_inc))]
+            max_single_inc_range = 15
+            k_vals_to_try = [i + 1 for i in range(max_single_inc_range)]
+            max_k_val = min(train_sample_size, 100)
+            k_vals_to_try.extend([min(max_k_val, k_val_inc * i) for i in range((1 + floor(max_single_inc_range / k_val_inc)), 1 + ceil(max_k_val / k_val_inc))])
+            print("K Values to Evaluate")
+            print(k_vals_to_try)
+            # k_vals_to_try = [min(k_val_inc * i, feature_count) for i in range(max_sin, 1 + ceil(feature_count / k_val_inc))]
             k_nearest_neighbor_classifiers = {i:KNearestNeighborClassifier(i, feature_count) for i in k_vals_to_try}
             classifiers = k_nearest_neighbor_classifiers.values() # TODO populate once have classifiers to evaluate (consider trying out other classifiers too?)
 
@@ -290,12 +289,8 @@ if __name__=="__main__":
                 kNN_classifier_name = k_nearest_neighbor_classifiers[k_num].getName()
                 classifier_results = classifier_test_info[kNN_classifier_name]
 
-                k_nn_results.append(KnnResults(train_sample_size, feature_count, k_num, classifier_results))
-
-                if (best_knn_error_rate > classifier_results):
-                    best_knn_k_num = k_num
-                    best_knn_error_rate = classifier_results
-                knn_results_y.append(classifier_results)
+                k_nn_results.append(KnnResults(train_sample_size, feature_count, k_num, classifier_results[0], classifier_results[1]))
+                knn_results_y.append(classifier_results[0])
 
             results_by_feature_count[feature_count] = (knn_results_x, knn_results_y)
 

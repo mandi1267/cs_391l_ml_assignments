@@ -2,6 +2,7 @@
 from k_nearest_neighbor_classifier import *
 from mnist_reader import *
 from display_utils import *
+from princ_comp_analysis import *
 import matplotlib.pyplot as plt
 import csv
 
@@ -38,85 +39,6 @@ class KnnResults:
         self.num_nearest_neighbors = num_nearest_neighbors
         self.accuracy_rate = accuracy_rate
         self.classification_time_per_sample = classification_time_per_sample
-
-def hw1FindEigendigits(training_data):
-    """
-    Computes the mean of the training data and an NxM matrix, with each column as an an eigenvector of the training data.
-    N = number of features in the original training data, M = number of training samples. The eigenvectors are
-    normalized to have length 1 and are sorted by their respective eigenvalues in descending order. Assumes that N >= M.
-
-    Args:
-        training_data (2D numpy array): Array containing training data. Each
-            sample corresponds to one column.
-
-    Returns:
-        Tuple containing vector of length N (number of pixels) containing mean
-        value of training samples for each pixel and NxM matrix containing the
-        M highest eighenvectors (sorted in descending order by their
-        eigenvalue), where M is the number of training samples. Each column is
-        an eigenvector.
-    """
-
-    # Compute the mean of each feature (will give vector of length N)
-    mean_vec = np.mean(training_data, axis=1)
-
-    mean_0_training_data = training_data - mean_vec[:, None]
-    mean_0_training_data_transpose = np.transpose(mean_0_training_data)
-
-    # Get the MxM matrix (training data has N rows, so the transpose will have M rows)
-    m_by_m_mat = mean_0_training_data_transpose.dot(mean_0_training_data)
-
-    # Get the eigen vectors of the MxM matrix
-    # Because a matrix times its transpose is symmetric, we can use eigh
-    eig_vals, eig_vecs = np.linalg.eigh(m_by_m_mat)
-
-    # Each column in eig_vecs is an eigenvector
-    # Sort the eigenvectors by their corresponding eigenvalues in descending
-    # order
-    # Transpose the eigenvector matrix (so each eigenvector is a row) and
-    # add a column at the end corresponding to the eigenvalue
-    eig_vals_and_vecs_matrix = np.column_stack((np.transpose(eig_vecs), eig_vals))
-
-    # Sort the combined matrix by the last column and then remove the
-    # eigenvalue column
-    sorted_eig_vecs_and_vals = eig_vals_and_vecs_matrix[(-1 * eig_vals_and_vecs_matrix[:, -1]).argsort()]
-    sorted_eig_vecs = sorted_eig_vecs_and_vals[:, :-1]
-
-    # Transform the eigenvectors so that they are eigenvectors of the training
-    # data
-    sorted_eig_vecs_in_columns = np.transpose(sorted_eig_vecs)
-    m_largest_eig_vecs_of_n_by_n_mat = mean_0_training_data.dot(sorted_eig_vecs_in_columns)
-
-    # Normalize the eigenvectors to have length 1
-    eig_vector_magnitudes = np.linalg.norm(m_largest_eig_vecs_of_n_by_n_mat, axis=0)
-    normalized_m_largest_eig_vecs_of_n_by_n_mat = m_largest_eig_vecs_of_n_by_n_mat / (eig_vector_magnitudes[None, :])
-
-    # Return a tuple of the mean value for each feature (pixel) and a matrix with
-    return mean_vec, normalized_m_largest_eig_vecs_of_n_by_n_mat
-
-def transformToEigenRepresentation(mean_feature_vec, eigenvecs_of_training, data_to_eval):
-    """
-    Transform the input data to the eigenvector representation by subtracting the mean of each feature
-    and then taking the dot product with each eigenvector to get a new feature of dimension M (where M is the number of
-    eigenvectors). This is performed as a matrix operation for every sample in the input data (each column of the input
-    data).
-
-    Args:
-        mean_feature_vec (1D numpy array):      Vector containing the mean of each feature in the full-dimensional
-                                                representation of the data.
-        eigenvecs_of_training (2D numpy array): N x M matrix where each column is an eigenvector of the training data.
-                                                N is the number of features in the original data representation (number
-                                                of pixels) and M is the number of eigenvectors and the size of the
-                                                lower-dimensional representation for the data. M must be less than or
-                                                equal to N.
-        data_to_eval (2D numpy array):          N x L array containing data to transform to lower-dimensional
-                                                representation. Each column is one sample. L is the number of samples.
-    Returns:
-        M x L array with the input data transformed to the eigenvector representation, with each column as a
-        transformed sample. There are M features for each transformed sample and L total samples.
-    """
-    mean_subtracted_data = data_to_eval - mean_feature_vec[:, None]
-    return np.transpose(np.transpose(mean_subtracted_data).dot(eigenvecs_of_training))
 
 def getRandomSubsetOfData(data, labels, number_of_samples_to_return):
     """
@@ -199,13 +121,16 @@ def plotResults(k_nn_results):
 
 def writeResultsToFile(k_nn_results, output_file_name):
     with open(output_file_name, 'w') as results_file:
-        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "accuracy_rate", "classification_time_per_sample"]
+        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "accuracy_rate",
+            "classification_time_per_sample"]
         csv_writer = csv.writer(results_file, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(header_line)
         for result in k_nn_results:
-            csv_writer.writerow([result.num_training_samples, result.num_principal_components, result.num_nearest_neighbors, result.accuracy_rate, result.classification_time_per_sample])
+            csv_writer.writerow([result.num_training_samples, result.num_principal_components,
+                result.num_nearest_neighbors, result.accuracy_rate, result.classification_time_per_sample])
 
-def executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display):
+def executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img,
+    num_cols_in_img, k_values_to_try, skip_display):
 
     """
     TODO
@@ -215,7 +140,6 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
 
     num_training_size_increment = 50
     num_samples_to_use = [min(num_training_size_increment * i, img_vector_size)  for i in range(1, 1 + ceil(img_vector_size / num_training_size_increment))]
-    # num_samples_to_use = [784]
     # num_samples_to_use = [105]
     print(num_samples_to_use)
 
@@ -230,9 +154,6 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
 
     for train_sample_size in num_samples_to_use:
         train_data_subset, train_label_subset = getRandomSubsetOfData(training_data, training_labels, train_sample_size)
-        print(train_data_subset.shape)
-
-        print("Training sample size " + str(train_sample_size))
 
         feature_count_inc_size = 25
 
@@ -263,25 +184,23 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
             transformed_test_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, test_data_subset)
 
             # Construct classifiers to evaluate
-            k_val_inc = 5
-            max_single_inc_range = 15
-            k_vals_to_try = [i + 1 for i in range(max_single_inc_range)]
-            max_k_val = min(train_sample_size, 100)
-            k_vals_to_try.extend([min(max_k_val, k_val_inc * i) for i in range((1 + floor(max_single_inc_range / k_val_inc)), 1 + ceil(max_k_val / k_val_inc))])
+            if (len(k_values_to_try) == 0):
+                k_val_inc = 5
+                max_single_inc_range = 15
+                k_vals_to_try = [i + 1 for i in range(max_single_inc_range)]
+                max_k_val = min(train_sample_size, 100)
+                k_vals_to_try.extend([min(max_k_val, k_val_inc * i) for i in range((1 + floor(max_single_inc_range / k_val_inc)), 1 + ceil(max_k_val / k_val_inc))])
+            else:
+                k_vals_to_try = [k for k in k_values_to_try if k <= train_sample_size]
             print("K Values to Evaluate")
             print(k_vals_to_try)
-            # k_vals_to_try = [min(k_val_inc * i, feature_count) for i in range(max_sin, 1 + ceil(feature_count / k_val_inc))]
             k_nearest_neighbor_classifiers = {i:KNearestNeighborClassifier(i, feature_count) for i in k_vals_to_try}
             classifiers = k_nearest_neighbor_classifiers.values() # TODO populate once have classifiers to evaluate (consider trying out other classifiers too?)
 
-            classifiers_dict = {classifier.classifier_name:classifier for classifier in classifiers}
-            classifier_train_info = {}
-            for classifier_name, classifier in classifiers_dict.items():
-                classifier_train_info[classifier_name] = classifier.trainClassifier(transformed_training_data, train_label_subset)
-
             classifier_test_info = {}
-            for classifier_name, classifier in classifiers_dict.items():
-                classifier_test_info[classifier_name] = classifier.testClassifier(transformed_test_data, test_label_subset)
+            for classifier_k_val, classifier in k_nearest_neighbor_classifiers.items():
+                classifier.trainClassifier(transformed_training_data, train_label_subset)
+                classifier_test_info[classifier_k_val] = classifier.testClassifier(transformed_test_data, test_label_subset)
 
             best_knn_k_num = 0
             best_knn_accuracy_rate = 0
@@ -290,8 +209,7 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
 
             for k_num in k_nearest_neighbor_classifiers.keys():
 
-                kNN_classifier_name = k_nearest_neighbor_classifiers[k_num].classifier_name
-                classifier_results = classifier_test_info[kNN_classifier_name]
+                classifier_results = classifier_test_info[k_num]
 
                 k_nn_results.append(KnnResults(train_sample_size, feature_count, k_num, classifier_results[0], classifier_results[1]))
                 knn_results_y.append(classifier_results[0])
@@ -313,23 +231,6 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
 
     plotResults(k_nn_results)
 
-def plotGraph(x_values, y_values, x_axis_label, y_axis_label, graph_title):
-    """
-    Plot a graph with the given data.
-
-    Args:
-        x_values (1D array):    X values to plot
-        y_values (1D array):    Y values to plot. Should have same number of items as x_values
-        x_axis_label (string):  Label for the x axis
-        y_axis_label (string):  Label for the y axis
-        graph_title (string):   Title for the graph
-    """
-    plt.plot(x_values, y_values, 'rD-.')
-    plt.xlabel(x_axis_label)
-    plt.ylabel(y_axis_label)
-    plt.title(graph_title)
-    plt.show()
-
 def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data, training_labels, test_data,
     test_labels, skip_display):
 
@@ -346,7 +247,6 @@ def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data,
         test_labels (1D numpy array):       Labels for the test data. Has L entries.
         skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
                                             displayed.
-
     """
 
     full_train_set_size = training_data.shape[1]
@@ -363,7 +263,8 @@ def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data,
     large_inc = 25
 
     num_features_to_try = [i + 1 for i in range(max_single_inc_range) if i < full_train_set_size]
-    num_features_to_try.extend([i for i in range(max_single_inc_range + small_inc, max_small_inc_range, small_inc) if i < full_train_set_size])
+    num_features_to_try.extend([i for i in range(max_single_inc_range + small_inc, max_small_inc_range, small_inc)
+        if i < full_train_set_size])
     if (full_train_set_size >= max_small_inc_range):
         num_features_to_try.extend([i for i in range(max_small_inc_range, full_train_set_size + 1, large_inc)])
         if (full_train_set_size not in num_features_to_try):
@@ -437,12 +338,16 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
         k_val_for_classifier = training_set_sizes_to_try[0]
 
     classifier_results = []
+    pca_time_results = []
     for training_set_size in training_set_sizes_to_try:
         print("Train set size: " + str(training_set_size) + ", Feature count " + str(feature_count_to_use))
 
         # Get the subset of the training data and compute the eigenvectors and mean for that training set
         train_data_subset, train_label_subset = getRandomSubsetOfData(training_data, training_labels, training_set_size)
+        principal_component_start_time = time.time()
         mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(train_data_subset)
+        principal_component_extraction_duration = time.time() - principal_component_start_time
+        pca_time_results.append(principal_component_extraction_duration)
 
         # Get the eigenvectors to use in the feature transformation
         reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count_to_use]
@@ -464,42 +369,8 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
         plotGraph(training_set_sizes_to_try, classifier_results, "Number of training samples",
         "Accuracy rate", ("Accuracy rate by number of training samples used, for feature count " + str(feature_count_to_use) +
         " and k=" + str(k_val_for_classifier)))
-
-def displayEigenVector(num_rows_in_img, num_cols_in_img, eigen_vec):
-    """
-    Display the eigenvector as an image.
-
-    Args:
-        num_rows_in_img (int):      Number of rows in images.
-        num_cols_in_img (int):      Number of columns in images.
-        eigen_vec (1D numpy array): Eigenvector to display as an image.
-    """
-    eigen_vector_matrix = convertVectorToImage(eigen_vec, num_rows_in_img, num_cols_in_img)
-    plt.title("Eigen vector")
-    plt.imshow(eigen_vector_matrix, interpolation='none')
-    plt.show()
-
-def displayEigenVectorRepresentationOfImage(eigen_vec_img_representation, eigen_vector_matrix, num_rows_in_orig_img, num_cols_in_orig_img, mean_feature_vec):
-    """
-    Reconstruct and display an image from the eigenvector-space representation of the image and the eigenvector matrix
-    and mean value of the pixels from which the eigenvectors were computed.
-
-    Args:
-        eigen_vec_img_representation (1D Numpy array):  Eigenvector-space representation of an image (reduced-feature image representation).
-        eigen_vector_matrix (2D Numpy array):           N x M matrix with the top M eigenvectors of the training data as columns.
-        num_rows_in_orig_img (int):                     Number of rows in the original image format.
-        num_cols_in_orig_img (int):                     Number of columns in the original image format.
-        mean_feature_vec (1D Numpy array):              Mean value for each pixel in the original training data set.
-    """
-
-    eig_pseudo_inv = np.linalg.pinv(eigen_vector_matrix)
-    expanded_img_vec = (eigen_vec_img_representation @ eig_pseudo_inv) + mean_feature_vec
-    eigen_vector_matrix = convertVectorToImage(expanded_img_vec, num_rows_in_img, num_cols_in_img)
-    plt.title("Reconstructed image from eigenvector representation")
-    plt.imshow(eigen_vector_matrix, interpolation='none')
-    plt.show()
-
-    # TODO verify this
+        plotGraph(training_set_sizes_to_try, pca_time_results, "Number of training samples",
+            "Time to compute principal component vectors", "Time to compute principal components")
 
 def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, feature_count_to_use, k_val_for_classifier,
     training_data, training_labels, test_data, test_labels):
@@ -523,7 +394,10 @@ def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, featu
     """
     mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(training_data)
     reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count_to_use]
-    transformed_training_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, training_data)
+    transformed_training_data_small_feature_count = transformToEigenRepresentation(mean_feature_vec,
+        reduced_eigenvectors_of_train, training_data)
+    transformed_training_data_full_feature_count = transformToEigenRepresentation(mean_feature_vec,
+        eigenvectors_of_train, training_data)
 
     num_eigen_vecs_to_display = 10
     for i in range(num_eigen_vecs_to_display):
@@ -531,22 +405,27 @@ def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, featu
         displayEigenVector(num_rows_in_img, num_cols_in_img, eigen_vec)
 
     classifier = KNearestNeighborClassifier(k_val_for_classifier, feature_count_to_use)
-    classifier.trainClassifier(transformed_training_data, training_labels)
+    classifier.trainClassifier(transformed_training_data_small_feature_count, training_labels)
 
     num_test_samples_to_classify_and_display = 10
     rand_test_imgs_to_display, rand_test_labels_to_display = getRandomSubsetOfData(test_data, test_labels,
         num_test_samples_to_classify_and_display)
-    transformed_test_imgs_to_display = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train,
-        rand_test_imgs_to_display)
+    transformed_test_imgs_to_display_small_feature_count = transformToEigenRepresentation(mean_feature_vec,
+        reduced_eigenvectors_of_train, rand_test_imgs_to_display)
+    transformed_test_imgs_to_display_full_feature_count = transformToEigenRepresentation(mean_feature_vec,
+        eigenvectors_of_train, rand_test_imgs_to_display)
     for i in range(num_test_samples_to_classify_and_display):
         img_vector = rand_test_imgs_to_display[:, i]
-        transformed_img_vector = transformed_test_imgs_to_display[:, i]
-        classifier_label = classifier.classifySample(transformed_img_vector)
+        transformed_img_vector_small_feature_count = transformed_test_imgs_to_display_small_feature_count[:, i]
+        transformed_img_vector_full_feature_count = transformed_test_imgs_to_display_full_feature_count[:, i]
+        classifier_label = classifier.classifySample(transformed_img_vector_small_feature_count)
         image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
         displayImage(image_matrix, rand_test_labels_to_display[i], classifier_label)
 
-        displayEigenVectorRepresentationOfImage(transformed_img_vector, reduced_eigenvectors_of_train, num_rows_in_img,
-            num_cols_in_img, mean_feature_vec)
+        displayEigenVectorRepresentationOfImage(transformed_img_vector_small_feature_count,
+            reduced_eigenvectors_of_train, num_rows_in_img, num_cols_in_img, mean_feature_vec)
+        displayEigenVectorRepresentationOfImage(transformed_img_vector_full_feature_count, eigenvectors_of_train,
+            num_rows_in_img, num_cols_in_img, mean_feature_vec)
 
 def executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img,
     k_values_to_try, skip_display):
@@ -583,7 +462,8 @@ def executeSimpleEvaluation(training_data, training_labels, test_data, test_labe
     img_vector_size = num_rows_in_img * num_cols_in_img
 
     print("Displaying some random training data and test data")
-    rand_train_imgs_to_display, rand_train_labels_to_display = getRandomSubsetOfData(training_data, training_labels, num_train_to_display)
+    rand_train_imgs_to_display, rand_train_labels_to_display = getRandomSubsetOfData(training_data, training_labels,
+        num_train_to_display)
 
     # Display some images from both the training and test data sets
     if (not skip_display):
@@ -592,7 +472,8 @@ def executeSimpleEvaluation(training_data, training_labels, test_data, test_labe
             image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
             displayImage(image_matrix, rand_train_labels_to_display[i])
 
-        rand_test_imgs_to_display, rand_test_labels_to_display = getRandomSubsetOfData(test_data, test_labels, num_test_to_display)
+        rand_test_imgs_to_display, rand_test_labels_to_display = getRandomSubsetOfData(test_data, test_labels,
+            num_test_to_display)
         for i in range(num_test_to_display):
             img_vector = rand_test_imgs_to_display[:, i]
             image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
@@ -627,8 +508,14 @@ def executeSimpleEvaluation(training_data, training_labels, test_data, test_labe
             displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, feature_count_to_use, k_val,
                 train_data_subset, train_label_subset, test_data_subset, test_label_subset)
 
-if __name__=="__main__":
+def getCmdLineArgs():
 
+    """
+    Set up the command line argument options and return the arguments used.
+
+    Returns:
+        Command line arguments data structure.
+    """
     default_training_data_file_name = "/Users/mandiadkins/Downloads/train-images.idx3-ubyte"
     default_training_label_file_name = "/Users/mandiadkins/Downloads/train-labels.idx1-ubyte"
 
@@ -641,8 +528,8 @@ if __name__=="__main__":
         'containing the training images. Should be formatted based on the MNIST format described on the MNIST website.')
     arg_parser.add_argument("--train_label_file", default=default_training_label_file_name, help='Name of the file '\
         'containing the training labels. Should be formatted based on the MNIST format described on the MNIST website.')
-    arg_parser.add_argument("--test_image_file", default=default_test_data_file_name, help='Name of the file containing'\
-        'the test images. Should be formatted based on the MNIST format described on the MNIST website.')
+    arg_parser.add_argument("--test_image_file", default=default_test_data_file_name, help='Name of the file '\
+        'containing the test images. Should be formatted based on the MNIST format described on the MNIST website.')
     arg_parser.add_argument("--test_label_file", default=default_test_label_file_name, help='Name of the file'\
         'containing the test labels. Should be formatted based on the MNIST format described on the MNIST website.')
     arg_parser.add_argument("--knn_k_value", "-k", type=int, nargs='+', help='List of k values to try in program'\
@@ -651,7 +538,11 @@ if __name__=="__main__":
         'values are specified, a large array of k values will be tested')
     arg_parser.add_argument("--skip_display", "-s", action='store_true')
 
-    parser_results = arg_parser.parse_args()
+    return arg_parser.parse_args()
+
+if __name__=="__main__":
+
+    parser_results = getCmdLineArgs()
 
     run_exhaustive_results = parser_results.exhaustive
     train_image_file_name = parser_results.train_image_file
@@ -673,13 +564,16 @@ if __name__=="__main__":
     training_data = np.transpose(training_data)
     test_data = np.transpose(test_data)
 
+    # If no k values were supplied, switch to empty list to indicate use of default
     if (k_values_to_try == None):
         k_values_to_try = []
 
     if (run_exhaustive_results):
         print("Running exhaustive results calcluation")
-        executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display)
+        executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img,
+            num_cols_in_img, k_values_to_try, skip_display)
 
     else:
         print("Running simple evaluation")
-        executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display)
+        executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img,
+            num_cols_in_img, k_values_to_try, skip_display)

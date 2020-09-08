@@ -1,5 +1,34 @@
-This folder contains work for CS 391L assignment 1. 
+# Assignment Description
+This folder contains work for CS 391L assignment 1.
 
-The objective of this assignment is to develop a classifier for the MNIST digit data set that computes an eigenvector representation of the data based on the training set, and then uses this representation as features for a classifier that is then trained. 
+The objective of this assignment is to develop a classifier for the MNIST digit data set that computes an eigenvector
+representation of the data based on the training set, and then uses this representation as features for a
+classifier that is then trained. This should then transform the test data to use the same representation and then test
+the classifier on the test data.
 
-This should then transform the test data to use the same representation and then test the classifier on the test data. 
+# Execution Instructions
+To run a simple evaluation, consisting of accuracy for a variety of features counts for 784 training samples, accuracy
+for a variety of training sample sizes for a fixed feature count, and plots of eigenvectors, classified images, and
+the reconstructed images from their eigenvector representations, run the following:
+"python3 assign1.py --train_image_file <training image file location> --train_label_file <training label file location>
+--test_image_file <test image file location> --test_label_file <test label file location>"
+This will run with a kNN classifer with k=10. You can specify a list of k values to evaluate by adding the -k flag,
+followed by the k values. To skip plots, add the -s option.
+
+Files are assumed to be in the format provided on the MNIST website (http://yann.lecun.com/exdb/mnist/).  
+
+To run an exhaustive search over a large set of training set sizes, feature counts, and k values for the kNN classifier,
+add the "--exhaustive" flag. Warning: this will take a long time (> 1 day). Results will be output to a file at the end.
+
+# Code Organization
+The purposes of each of the files are as follows:
+- assign1.py - orchestrates program execution by reading data, creating classifiers, finding principal components, and
+    transforming data to the principal component representation.
+- classifer_interface.py - Provides interface that a classifier must implement. Also contains code for evaluating the
+    accuracy of the classifier given a test data set and known test labels.
+- display_utils.py - Contains functions for plotting results (graphs and images).
+- k_nearest_neighbor_classifier.py - Class implementing the kNN classifier.
+- mnist_reader.py - Contains functions for reading the MNIST data set (images and labels).
+- princ_comp_analysis.py - Contains functions for extracting the eigenvectors and mean of the input data and
+    transforming input samples to the eigenvector representation.
+The remaining files are for testing (unit test and manual test).

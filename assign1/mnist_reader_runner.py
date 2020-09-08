@@ -12,9 +12,11 @@ def main():
         print("Need to specify files for data and labels")
         return
 
+    # Get the names of the files containing the images and the labels
     data_file_name = sys.argv[1]
     labels_file_name = sys.argv[2]
 
+    # Read the images and labels from the files
     img_data, num_rows_in_img, num_cols_in_img = readMNISTData(data_file_name)
     img_labels = readMNISTLabels(labels_file_name)
 
@@ -26,6 +28,7 @@ def main():
 
     num_images_to_display = 15
 
+    # Display some images
     for i in range(num_images_to_display):
         data = img_data[i, :]
         matrix_version = convertVectorToImage(data, num_rows_in_img, num_cols_in_img)

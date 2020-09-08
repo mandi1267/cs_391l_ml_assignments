@@ -10,22 +10,40 @@ from math import ceil
 from math import floor
 import sys
 import datetime
+import argparse
 
 class KnnResults:
-    def __init__(self, num_training_samples, num_principal_components, num_nearest_neighbors, error_rate, classification_time_per_sample):
+    def __init__(self, num_training_samples, num_principal_components, num_nearest_neighbors, accuracy_rate, classification_time_per_sample):
+        """
+        Constructor for the results.
+        Captures the parameters for a particular classifier evaluation and the results of the evaluation.
+
+        Args:
+            num_training_samples (int):                 Number of training samples that were used to train the
+                                                        classifier.
+            num_principal_components (int):             Number of features that were used in representing the digits.
+                                                        Equivalent to the number eigenvectors that were extracted from
+                                                        the training data.
+            num_nearest_neighbors (int):                K in the K-NN classifier. Each sample is classified according
+                                                        to the mode of the K training samples that are closest to the
+                                                        input sample.
+            accuracy_rate (double):                     Accuracy rate of the classifier. 0 indicates that there were no
+                                                        correct classifications, 1 indicates that every sample was
+                                                        correctly classified.
+            classification_time_per_sample (double):    Average amount of time it takes to classify each sample.
+        """
+
         self.num_training_samples = num_training_samples
         self.num_principal_components = num_principal_components
         self.num_nearest_neighbors = num_nearest_neighbors
-        self.error_rate = error_rate
+        self.accuracy_rate = accuracy_rate
         self.classification_time_per_sample = classification_time_per_sample
 
 def hw1FindEigendigits(training_data):
     """
-    Compute the vector by which to multiply data to express it in M values (
-    which correspond to the directions along the M largest eigenvectors) of the
-    training data.
-
-    Assumes that there are less samples than there are featurs.
+    Computes the mean of the training data and an NxM matrix, with each column as an an eigenvector of the training data.
+    N = number of features in the original training data, M = number of training samples. The eigenvectors are
+    normalized to have length 1 and are sorted by their respective eigenvalues in descending order. Assumes that N >= M.
 
     Args:
         training_data (2D numpy array): Array containing training data. Each
@@ -38,6 +56,8 @@ def hw1FindEigendigits(training_data):
         eigenvalue), where M is the number of training samples. Each column is
         an eigenvector.
     """
+
+    # Compute the mean of each feature (will give vector of length N)
     mean_vec = np.mean(training_data, axis=1)
 
     mean_0_training_data = training_data - mean_vec[:, None]
@@ -51,7 +71,6 @@ def hw1FindEigendigits(training_data):
     eig_vals, eig_vecs = np.linalg.eigh(m_by_m_mat)
 
     # Each column in eig_vecs is an eigenvector
-
     # Sort the eigenvectors by their corresponding eigenvalues in descending
     # order
     # Transpose the eigenvector matrix (so each eigenvector is a row) and
@@ -67,42 +86,60 @@ def hw1FindEigendigits(training_data):
     # data
     sorted_eig_vecs_in_columns = np.transpose(sorted_eig_vecs)
     m_largest_eig_vecs_of_n_by_n_mat = mean_0_training_data.dot(sorted_eig_vecs_in_columns)
+
+    # Normalize the eigenvectors to have length 1
     eig_vector_magnitudes = np.linalg.norm(m_largest_eig_vecs_of_n_by_n_mat, axis=0)
     normalized_m_largest_eig_vecs_of_n_by_n_mat = m_largest_eig_vecs_of_n_by_n_mat / (eig_vector_magnitudes[None, :])
 
+    # Return a tuple of the mean value for each feature (pixel) and a matrix with
     return mean_vec, normalized_m_largest_eig_vecs_of_n_by_n_mat
 
-def transformToEigenRepresentation(mean_feature_vec, eigenvals_of_training, data_to_eval):
-
-    # TODO Do we want this to transform a single piece of data or several rows
-    # of data (samples)
-
+def transformToEigenRepresentation(mean_feature_vec, eigenvecs_of_training, data_to_eval):
     """
-    Transform the input data to the eigenvector representation (so it has M
-    features instead of N, where N is the original feature count and M is the
-    number of training samples).
+    Transform the input data to the eigenvector representation by subtracting the mean of each feature
+    and then taking the dot product with each eigenvector to get a new feature of dimension M (where M is the number of
+    eigenvectors). This is performed as a matrix operation for every sample in the input data (each column of the input
+    data).
 
     Args:
-        eigenvector_transform_info (2D numpy array): Matrix with each column
-            being an eigenvector of the X^T * X (where X is the training data).
-            Using this to transform the data to evaluate to have M features
-            instead of N.
-        data_to_eval (2D numpy array): Has Z columns and N rows (Z is the
-            number of samples to transform).
-
-
+        mean_feature_vec (1D numpy array):      Vector containing the mean of each feature in the full-dimensional
+                                                representation of the data.
+        eigenvecs_of_training (2D numpy array): N x M matrix where each column is an eigenvector of the training data.
+                                                N is the number of features in the original data representation (number
+                                                of pixels) and M is the number of eigenvectors and the size of the
+                                                lower-dimensional representation for the data. M must be less than or
+                                                equal to N.
+        data_to_eval (2D numpy array):          N x L array containing data to transform to lower-dimensional
+                                                representation. Each column is one sample. L is the number of samples.
     Returns:
-        ZxM matrix with each sample now having M features instead of N (based
-        on the projection onto the eigenvectors of the training data).
+        M x L array with the input data transformed to the eigenvector representation, with each column as a
+        transformed sample. There are M features for each transformed sample and L total samples.
     """
-
     mean_subtracted_data = data_to_eval - mean_feature_vec[:, None]
-    return np.transpose(np.transpose(mean_subtracted_data).dot(eigenvals_of_training))
-
-
+    return np.transpose(np.transpose(mean_subtracted_data).dot(eigenvecs_of_training))
 
 def getRandomSubsetOfData(data, labels, number_of_samples_to_return):
+    """
+    Get a random subset of the input data and corresponding labels.
+
+    Args:
+        data (2D numpy array):              Data to get the subset of. This is a P X L array, where P is the number of
+                                            features in the data and L is the total number of samples. Each column is
+                                            one sample.
+        labels (1D numpy array):            Labels for the input data. Has L entries, where the first entry corresponds
+                                            to the first column (sample) in the data, and so on.
+        number_of_samples_to_return (int):  Number of total samples to return. Assumed to be less than or equal to the
+                                            number of samples in the input data.
+    Returns:
+        A tuple of the following:
+            P x number_of_samples_to_return array with a random selection of the input data, drawn without replacement.
+                Each column is a sample
+            number_of_samples_to_return length vector with the labels corresponding to the selected samples returned.
+    """
+    # Get the indices of the samples to return as a random sample
     indices = np.random.choice(labels.size, number_of_samples_to_return, replace=False)
+
+    # Get the labels and data that corresponds to the randomly selected indices
     label_subset = labels[indices]
     data_subset = data[:, indices]
     return (data_subset, label_subset)
@@ -111,103 +148,70 @@ def plotResults(k_nn_results):
     # Get all unique training sample values
     training_sample_counts = sorted(list(set([knn_result.num_training_samples for knn_result in k_nn_results])))
 
-    # Training values mapped to the best error rate to the training value and the results object corresponding to the
-    # error rate
-    best_results_by_training_sample_count = {training_value:(1, None) for training_value in training_sample_counts}
+    # Training values mapped to the best accuracy_rate to the training value and the results object corresponding to the
+    # accuracy_rate
+    best_results_by_training_sample_count = {training_value:(0, None) for training_value in training_sample_counts}
 
     # Get all unique feature count values
     feature_count_values = sorted(list(set([knn_result.num_principal_components for knn_result in k_nn_results])))
 
-    # Feature counts mapped to the best error rate to the training value and the results object corresponding to the
-    # error rate
-    best_results_by_feature_count = {feature_count:(1, None) for feature_count in feature_count_values}
+    # Feature counts mapped to the best accuracy_rate to the training value and the results object corresponding to the
+    # accuracy_rate
+    best_results_by_feature_count = {feature_count:(0, None) for feature_count in feature_count_values}
 
     # Get all unique k values
     nearest_neighbor_values = sorted(list(set([knn_result.num_nearest_neighbors for knn_result in k_nn_results])))
 
-    # Nearest neighbor number mapped to the best error rate to the training value and the results object corresponding
-    # to the error rate
-    best_results_by_neighbor_count = {neighbor_count:(1, None) for neighbor_count in nearest_neighbor_values}
+    # Nearest neighbor number mapped to the best accuracy_rate to the training value and the results object corresponding
+    # to the accuracy_rate
+    best_results_by_neighbor_count = {neighbor_count:(0, None) for neighbor_count in nearest_neighbor_values}
 
     for k_nn_result in k_nn_results:
-        if (best_results_by_training_sample_count[k_nn_result.num_training_samples][0] > k_nn_result.error_rate):
-            best_results_by_training_sample_count[k_nn_result.num_training_samples] = (k_nn_result.error_rate, k_nn_result)
-        if (best_results_by_feature_count[k_nn_result.num_principal_components][0] > k_nn_result.error_rate):
-            best_results_by_feature_count[k_nn_result.num_principal_components] = (k_nn_result.error_rate, k_nn_result)
-        if (best_results_by_neighbor_count[k_nn_result.num_nearest_neighbors][0] > k_nn_result.error_rate):
-            best_results_by_neighbor_count[k_nn_result.num_nearest_neighbors] = (k_nn_result.error_rate, k_nn_result)
+        if (best_results_by_training_sample_count[k_nn_result.num_training_samples][0] < k_nn_result.accuracy_rate):
+            best_results_by_training_sample_count[k_nn_result.num_training_samples] = (k_nn_result.accuracy_rate, k_nn_result)
+        if (best_results_by_feature_count[k_nn_result.num_principal_components][0] < k_nn_result.accuracy_rate):
+            best_results_by_feature_count[k_nn_result.num_principal_components] = (k_nn_result.accuracy_rate, k_nn_result)
+        if (best_results_by_neighbor_count[k_nn_result.num_nearest_neighbors][0] < k_nn_result.accuracy_rate):
+            best_results_by_neighbor_count[k_nn_result.num_nearest_neighbors] = (k_nn_result.accuracy_rate, k_nn_result)
 
     # Plot the best results for each training sample count
-    error_rate_by_training_sample_count = [best_results_by_training_sample_count[training_count][0] for training_count in training_sample_counts]
-    error_rate_by_feature_count = [best_results_by_feature_count[feature_count_value][0] for feature_count_value in feature_count_values]
-    error_rate_by_num_nearest_neighbor = [best_results_by_neighbor_count[neighbor_count][0] for neighbor_count in nearest_neighbor_values]
+    accuracy_rate_by_training_sample_count = [best_results_by_training_sample_count[training_count][0] for training_count in training_sample_counts]
+    accuracy_rate_by_feature_count = [best_results_by_feature_count[feature_count_value][0] for feature_count_value in feature_count_values]
+    accuracy_rate_by_num_nearest_neighbor = [best_results_by_neighbor_count[neighbor_count][0] for neighbor_count in nearest_neighbor_values]
 
-    plt.plot(training_sample_counts, error_rate_by_training_sample_count)
+    plt.plot(training_sample_counts, accuracy_rate_by_training_sample_count)
     plt.xlabel("Number of training samples")
-    plt.ylabel("Error rate")
-    plt.title("Best Error Rates Across All Counts of Principal Component and Neighbor Values by Number of Training Examples")
+    plt.ylabel("Accuracy rate")
+    plt.title("Best Accuracy Rates Across All Counts of Principal Component and Neighbor Values by Number of Training Examples")
     plt.show()
 
-    plt.plot(feature_count_values, error_rate_by_feature_count)
+    plt.plot(feature_count_values, accuracy_rate_by_feature_count)
     plt.xlabel("Number of principal components")
-    plt.ylabel("Error rate")
-    plt.title("Best Error Rates Across All Training Set Sizes and Neighbor Values by Number of Principal Components")
+    plt.ylabel("Accuracy rate")
+    plt.title("Best Accuracy Rates Across All Training Set Sizes and Neighbor Values by Number of Principal Components")
     plt.show()
 
-    plt.plot(nearest_neighbor_values, error_rate_by_num_nearest_neighbor)
+    plt.plot(nearest_neighbor_values, accuracy_rate_by_num_nearest_neighbor)
     plt.xlabel("Number of nearest neighbors")
-    plt.ylabel("Error rate")
-    plt.title("Best Error Rates Across All Training Set Sizes and Counts of Principal Component by Number of Nearest Neighbors")
+    plt.ylabel("Accuracy rate")
+    plt.title("Best Accuracy Rates Across All Training Set Sizes and Counts of Principal Component by Number of Nearest Neighbors")
     plt.show()
 
 def writeResultsToFile(k_nn_results, output_file_name):
     with open(output_file_name, 'w') as results_file:
-        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "error_rate", "classification_time_per_sample"]
+        header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "accuracy_rate", "classification_time_per_sample"]
         csv_writer = csv.writer(results_file, delimiter=',', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(header_line)
         for result in k_nn_results:
-            csv_writer.writerow([result.num_training_samples, result.num_principal_components, result.num_nearest_neighbors, result.error_rate, result.classification_time_per_sample])
+            csv_writer.writerow([result.num_training_samples, result.num_principal_components, result.num_nearest_neighbors, result.accuracy_rate, result.classification_time_per_sample])
 
-if __name__=="__main__":
+def executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display):
 
-    if (len(sys.argv) >= 5):
-        print("Getting training and test data from the command line")
-        training_data_file_name = sys.argv[1]
-        training_label_file_name = sys.argv[2]
-
-        test_data_file_name = sys.argv[3]
-        test_label_file_name = sys.argv[4]
-
-
-    else:
-        training_data_file_name = "/Users/mandiadkins/Downloads/train-images.idx3-ubyte"
-        training_label_file_name = "/Users/mandiadkins/Downloads/train-labels.idx1-ubyte"
-
-        test_data_file_name = "/Users/mandiadkins/Downloads/t10k-images.idx3-ubyte"
-        test_label_file_name = "/Users/mandiadkins/Downloads/t10k-labels.idx1-ubyte"
-
-    training_data, num_rows_in_img, num_cols_in_img = readMNISTData(training_data_file_name)
-    training_labels = readMNISTLabels(training_label_file_name)
-
-    for i in range(10):
-        data = training_data[i, :]
-        image_version = convertVectorToImage(data, num_rows_in_img, num_cols_in_img)
-        # displayImage(image_version, training_labels[i])
-
-    # Load the test data
-    test_data, num_rows_in_img, num_cols_in_img = readMNISTData(test_data_file_name)
-    test_labels = readMNISTLabels(test_label_file_name)
+    """
+    TODO
+    """
 
     img_vector_size = num_rows_in_img * num_cols_in_img
-
-    for i in range(10):
-        data = test_data[i, :]
-        image_version = convertVectorToImage(data, num_rows_in_img, num_cols_in_img)
-        # displayImage(image_version, test_labels[i])
-
-    # Transpose the training and test data so that each image is a column
-    training_data = np.transpose(training_data)
-    test_data = np.transpose(test_data)
 
     num_training_size_increment = 50
     num_samples_to_use = [min(num_training_size_increment * i, img_vector_size)  for i in range(1, 1 + ceil(img_vector_size / num_training_size_increment))]
@@ -215,9 +219,9 @@ if __name__=="__main__":
     # num_samples_to_use = [105]
     print(num_samples_to_use)
 
-    test_data_subset, test_label_subset = getRandomSubsetOfData(training_data, training_labels, 1000)
+    test_data_subset, test_label_subset = getRandomSubsetOfData(test_data, test_labels, 1000)
 
-    error_rate_by_train_set_size_and_feature_count = {}
+    accuracy_rate_by_train_set_size_and_feature_count = {}
 
     # Make map where outer key is training set size,
 
@@ -270,7 +274,7 @@ if __name__=="__main__":
             k_nearest_neighbor_classifiers = {i:KNearestNeighborClassifier(i, feature_count) for i in k_vals_to_try}
             classifiers = k_nearest_neighbor_classifiers.values() # TODO populate once have classifiers to evaluate (consider trying out other classifiers too?)
 
-            classifiers_dict = {classifier.getName():classifier for classifier in classifiers}
+            classifiers_dict = {classifier.classifier_name:classifier for classifier in classifiers}
             classifier_train_info = {}
             for classifier_name, classifier in classifiers_dict.items():
                 classifier_train_info[classifier_name] = classifier.trainClassifier(transformed_training_data, train_label_subset)
@@ -280,13 +284,13 @@ if __name__=="__main__":
                 classifier_test_info[classifier_name] = classifier.testClassifier(transformed_test_data, test_label_subset)
 
             best_knn_k_num = 0
-            best_knn_error_rate = 1
+            best_knn_accuracy_rate = 0
             knn_results_x = k_nearest_neighbor_classifiers.keys()
             knn_results_y = []
 
             for k_num in k_nearest_neighbor_classifiers.keys():
 
-                kNN_classifier_name = k_nearest_neighbor_classifiers[k_num].getName()
+                kNN_classifier_name = k_nearest_neighbor_classifiers[k_num].classifier_name
                 classifier_results = classifier_test_info[kNN_classifier_name]
 
                 k_nn_results.append(KnnResults(train_sample_size, feature_count, k_num, classifier_results[0], classifier_results[1]))
@@ -302,9 +306,380 @@ if __name__=="__main__":
         plt.plot(results_for_feature_count[0], results_for_feature_count[1], 'rD-.')
 
         plt.xlabel("K in KNN")
-        plt.ylabel("Error Rate")
-        plt.title("Error Rate by K Value for training set size " + str(train_sample_size) + " and " + str(feature_count) + " principal components")
+        plt.ylabel("Accuracy Rate")
+        plt.title("Accuracy Rate by K Value for training set size " + str(train_sample_size) + " and " + str(feature_count) + " principal components")
         plt.legend()
         plt.show()
 
     plotResults(k_nn_results)
+
+def plotGraph(x_values, y_values, x_axis_label, y_axis_label, graph_title):
+    """
+    Plot a graph with the given data.
+
+    Args:
+        x_values (1D array):    X values to plot
+        y_values (1D array):    Y values to plot. Should have same number of items as x_values
+        x_axis_label (string):  Label for the x axis
+        y_axis_label (string):  Label for the y axis
+        graph_title (string):   Title for the graph
+    """
+    plt.plot(x_values, y_values, 'rD-.')
+    plt.xlabel(x_axis_label)
+    plt.ylabel(y_axis_label)
+    plt.title(graph_title)
+    plt.show()
+
+def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data, training_labels, test_data,
+    test_labels, skip_display):
+
+    """
+    Evaluate the accuracy of classifiers for a fixed training set size.
+
+    Args:
+        k_val_for_classifier (int):         Number of nearest neighbors to use in the classifier.
+        training_data (2D numpy array):     N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        training_labels (1D numpy array):   Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+        skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
+                                            displayed.
+
+    """
+
+    full_train_set_size = training_data.shape[1]
+    if (k_val_for_classifier > full_train_set_size):
+        print("Bad k value. Not evaluating at k=" + k_val_for_classifiers)
+
+    # Use all training samples and vary the number of features used
+    # Create a list of the different feature sizes to try out. Have more dense distribution for smaller values of
+    # feature count and spread out the feature counts higher in the range (so we don't have to try out all 784
+    # possible values)
+    max_single_inc_range = 30
+    max_small_inc_range = 75
+    small_inc = 5
+    large_inc = 25
+
+    num_features_to_try = [i + 1 for i in range(max_single_inc_range) if i < full_train_set_size]
+    num_features_to_try.extend([i for i in range(max_single_inc_range + small_inc, max_small_inc_range, small_inc) if i < full_train_set_size])
+    if (full_train_set_size >= max_small_inc_range):
+        num_features_to_try.extend([i for i in range(max_small_inc_range, full_train_set_size + 1, large_inc)])
+        if (full_train_set_size not in num_features_to_try):
+            num_features_to_try.append(full_train_set_size)
+
+    print("Number of features to try with full training set (784 images): " + str(num_features_to_try))
+
+    # Find the eigenvector representation from the training data
+    mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(training_data)
+
+    classifier_results = []
+    for feature_count in num_features_to_try:
+        print("Train set size: " + str(full_train_set_size) + ", Feature count " + str(feature_count))
+
+        # Reduce the feature count and transform the training data to the reduced feature representation
+        reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count]
+        transformed_training_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, training_data)
+
+        # Also transform the test data
+        transformed_test_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, test_data)
+
+        # Train and run the classifier and store the accuracy results
+        classifier = KNearestNeighborClassifier(k_val_for_classifier, feature_count)
+        classifier.trainClassifier(transformed_training_data, training_labels)
+        classifier_results.append(classifier.testClassifier(transformed_test_data, test_labels)[0])
+
+    print("Results (accuracy rate, num_features_to_try)")
+    for i in range(len(num_features_to_try)):
+        print("(" + str(classifier_results[i]) + ", " + str(num_features_to_try[i]) + ")")
+
+    if (not skip_display):
+        plotGraph(num_features_to_try, classifier_results, "Number of features (eigenvectors) in classifier",
+        "Accuracy rate", ("Accuracy rate by number of eigenvectors used, for " + str(full_train_set_size) +
+        " samples and k=" + str(k_val_for_classifier)))
+
+def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_use, training_data, training_labels,
+    test_data, test_labels, skip_display):
+
+    """
+    Evaluate the accuracy for a fixed feature count and variable training set sizes.
+
+    Args:
+        k_val_for_classifier (int):         Number of nearest neighbors to use in the classifier. Should be less than
+                                            the minimum number of training samples.
+        feature_count_to_use (int):         Feature count to use. Should be less than the minimum number of training
+                                            samples.
+        training_data (2D numpy array):     N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        training_labels (1D numpy array):   Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+        skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
+                                            displayed.
+    """
+    full_train_set_size = training_data.shape[1]
+
+    num_training_size_increment = 50
+    training_set_sizes_to_try = [min(num_training_size_increment * i, full_train_set_size)  for i in range(1, 1 + ceil(full_train_set_size / num_training_size_increment))]
+
+    # If the feature count is greater than the smallest training set size to use, increase the feature count to be the
+    # minimum value
+    if (feature_count_to_use > training_set_sizes_to_try[0]):
+        print("Feature count to use " + str(feature_count_to_use) + " would not work with minimum training set size " + str(training_set_sizes_to_try[0]))
+        print("Changing to min training set size")
+        feature_count_to_use = training_set_sizes_to_try[0]
+
+    if (k_val_for_classifier > training_set_sizes_to_try[0]):
+        print("K value " + str(k_val_for_classifier) + " would not work with minimum training set size " + str(training_set_sizes_to_try[0]))
+        print("Changing to min training set size")
+        k_val_for_classifier = training_set_sizes_to_try[0]
+
+    classifier_results = []
+    for training_set_size in training_set_sizes_to_try:
+        print("Train set size: " + str(training_set_size) + ", Feature count " + str(feature_count_to_use))
+
+        # Get the subset of the training data and compute the eigenvectors and mean for that training set
+        train_data_subset, train_label_subset = getRandomSubsetOfData(training_data, training_labels, training_set_size)
+        mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(train_data_subset)
+
+        # Get the eigenvectors to use in the feature transformation
+        reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count_to_use]
+
+        # Transform the training and test data
+        transformed_training_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, train_data_subset)
+        transformed_test_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, test_data)
+
+        # Train and run the classifier and store the accuracy results
+        classifier = KNearestNeighborClassifier(k_val_for_classifier, feature_count_to_use)
+        classifier.trainClassifier(transformed_training_data, train_label_subset)
+        classifier_results.append(classifier.testClassifier(transformed_test_data, test_labels)[0])
+
+    print("Results (accuracy rate, training sample size)")
+    for i in range(len(training_set_sizes_to_try)):
+        print("(" + str(classifier_results[i]) + ", " + str(training_set_sizes_to_try[i]) + ")")
+
+    if (not skip_display):
+        plotGraph(training_set_sizes_to_try, classifier_results, "Number of training samples",
+        "Accuracy rate", ("Accuracy rate by number of training samples used, for feature count " + str(feature_count_to_use) +
+        " and k=" + str(k_val_for_classifier)))
+
+def displayEigenVector(num_rows_in_img, num_cols_in_img, eigen_vec):
+    """
+    Display the eigenvector as an image.
+
+    Args:
+        num_rows_in_img (int):      Number of rows in images.
+        num_cols_in_img (int):      Number of columns in images.
+        eigen_vec (1D numpy array): Eigenvector to display as an image.
+    """
+    eigen_vector_matrix = convertVectorToImage(eigen_vec, num_rows_in_img, num_cols_in_img)
+    plt.title("Eigen vector")
+    plt.imshow(eigen_vector_matrix, interpolation='none')
+    plt.show()
+
+def displayEigenVectorRepresentationOfImage(eigen_vec_img_representation, eigen_vector_matrix, num_rows_in_orig_img, num_cols_in_orig_img, mean_feature_vec):
+    """
+    Reconstruct and display an image from the eigenvector-space representation of the image and the eigenvector matrix
+    and mean value of the pixels from which the eigenvectors were computed.
+
+    Args:
+        eigen_vec_img_representation (1D Numpy array):  Eigenvector-space representation of an image (reduced-feature image representation).
+        eigen_vector_matrix (2D Numpy array):           N x M matrix with the top M eigenvectors of the training data as columns.
+        num_rows_in_orig_img (int):                     Number of rows in the original image format.
+        num_cols_in_orig_img (int):                     Number of columns in the original image format.
+        mean_feature_vec (1D Numpy array):              Mean value for each pixel in the original training data set.
+    """
+
+    eig_pseudo_inv = np.linalg.pinv(eigen_vector_matrix)
+    expanded_img_vec = (eigen_vec_img_representation @ eig_pseudo_inv) + mean_feature_vec
+    eigen_vector_matrix = convertVectorToImage(expanded_img_vec, num_rows_in_img, num_cols_in_img)
+    plt.title("Reconstructed image from eigenvector representation")
+    plt.imshow(eigen_vector_matrix, interpolation='none')
+    plt.show()
+
+    # TODO verify this
+
+def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, feature_count_to_use, k_val_for_classifier,
+    training_data, training_labels, test_data, test_labels):
+    """
+    Display the results of the principal component analysis and classification for a handful of test images.
+    This is just a demonstration of the techniques and not an analysis of the performance.
+
+    Args:
+        num_rows_in_img (int):              Number of rows in images.
+        num_cols_in_img (int):              Number of columns in images.
+        feature_count_to_use (int):         Feature count to use. Should be less than the minimum number of training
+                                            samples.
+        k_val_for_classifier (int):         Number of nearest neighbors to use in the classifier. Should be less than
+                                            the minimum number of training samples.
+        training_data (2D numpy array):     N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        training_labels (1D numpy array):   Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+    """
+    mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(training_data)
+    reduced_eigenvectors_of_train = eigenvectors_of_train[:, :feature_count_to_use]
+    transformed_training_data = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train, training_data)
+
+    num_eigen_vecs_to_display = 10
+    for i in range(num_eigen_vecs_to_display):
+        eigen_vec = eigenvectors_of_train[:, i]
+        displayEigenVector(num_rows_in_img, num_cols_in_img, eigen_vec)
+
+    classifier = KNearestNeighborClassifier(k_val_for_classifier, feature_count_to_use)
+    classifier.trainClassifier(transformed_training_data, training_labels)
+
+    num_test_samples_to_classify_and_display = 10
+    rand_test_imgs_to_display, rand_test_labels_to_display = getRandomSubsetOfData(test_data, test_labels,
+        num_test_samples_to_classify_and_display)
+    transformed_test_imgs_to_display = transformToEigenRepresentation(mean_feature_vec, reduced_eigenvectors_of_train,
+        rand_test_imgs_to_display)
+    for i in range(num_test_samples_to_classify_and_display):
+        img_vector = rand_test_imgs_to_display[:, i]
+        transformed_img_vector = transformed_test_imgs_to_display[:, i]
+        classifier_label = classifier.classifySample(transformed_img_vector)
+        image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
+        displayImage(image_matrix, rand_test_labels_to_display[i], classifier_label)
+
+        displayEigenVectorRepresentationOfImage(transformed_img_vector, reduced_eigenvectors_of_train, num_rows_in_img,
+            num_cols_in_img, mean_feature_vec)
+
+def executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img,
+    k_values_to_try, skip_display):
+
+    """
+    Execute a simple evaluation that computes accuracy for one fixed feature count and a variety of training set sizes,
+    and also one fixed training set size and a variety of feature count numbers. Also displays some eigenvectors as
+    images, some images reconstructed from their eigenvector representation, and the result of classification for a few
+    images.
+
+    Args:
+        training_data (2D numpy array):     N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        training_labels (1D numpy array):   Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+        num_rows_in_img (int):              Number of rows in images.
+        num_cols_in_img (int):              Number of columns in images.
+        k_values_to_try (list of ints):     List of k values to try in K nearest neighbors classifiers. If empty, will
+                                            use a single default value. If multiple entries, the functionality
+                                            demonstrated will be executed once per k value.
+        skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
+                                            displayed.
+    """
+
+    if (len(k_values_to_try) == 0):
+        k_values_to_try = [10] # TODO come up with good value
+
+    # Display a handful of training images and test images
+    num_train_to_display = 3
+    num_test_to_display = 3
+
+    img_vector_size = num_rows_in_img * num_cols_in_img
+
+    print("Displaying some random training data and test data")
+    rand_train_imgs_to_display, rand_train_labels_to_display = getRandomSubsetOfData(training_data, training_labels, num_train_to_display)
+
+    # Display some images from both the training and test data sets
+    if (not skip_display):
+        for i in range(num_train_to_display):
+            img_vector = rand_train_imgs_to_display[:, i]
+            image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
+            displayImage(image_matrix, rand_train_labels_to_display[i])
+
+        rand_test_imgs_to_display, rand_test_labels_to_display = getRandomSubsetOfData(test_data, test_labels, num_test_to_display)
+        for i in range(num_test_to_display):
+            img_vector = rand_test_imgs_to_display[:, i]
+            image_matrix = convertVectorToImage(img_vector, num_rows_in_img, num_cols_in_img)
+            displayImage(image_matrix, rand_test_labels_to_display[i])
+
+    # Get subset of test data for faster evaluation
+    test_set_size_to_use = 500
+    test_data_subset, test_label_subset = getRandomSubsetOfData(test_data, test_labels, test_set_size_to_use)
+
+    # Get a subset of data from the training set that is the same as the number of pixels
+    train_data_subset, train_label_subset = getRandomSubsetOfData(training_data, training_labels, img_vector_size)
+
+    for k_val in k_values_to_try:
+
+        # Use all training samples and vary the number of features used
+        # Create a list of the different feature sizes to try out. Have more dense distribution for smaller values of
+        # feature count and spread out the feature counts higher in the range (so we don't have to try out all 784
+        # possible values)
+        evaluateAccuracyForFixedTrainingSetSize(k_val, train_data_subset, train_label_subset, test_data_subset,
+            test_label_subset, skip_display)
+
+        # Using a fixed feature count, vary the number of training samples used
+        # Training sample count must be greater than or equal to the fixed feature count
+        feature_count_to_use = 25 # TODO
+        evaluateAccuracyForFixedFeatureCount(k_val, feature_count_to_use, train_data_subset, train_label_subset,
+            test_data, test_labels, skip_display)
+
+        # Display the eigenvectors
+        # Display some images transformed to the eigenvector representation
+        # Display a handful of images and their ground truth and classifier-produced labels
+        if not skip_display:
+            displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, feature_count_to_use, k_val,
+                train_data_subset, train_label_subset, test_data_subset, test_label_subset)
+
+if __name__=="__main__":
+
+    default_training_data_file_name = "/Users/mandiadkins/Downloads/train-images.idx3-ubyte"
+    default_training_label_file_name = "/Users/mandiadkins/Downloads/train-labels.idx1-ubyte"
+
+    default_test_data_file_name = "/Users/mandiadkins/Downloads/t10k-images.idx3-ubyte"
+    default_test_label_file_name = "/Users/mandiadkins/Downloads/t10k-labels.idx1-ubyte"
+
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--exhaustive", action='store_true')
+    arg_parser.add_argument("--train_image_file", default=default_training_data_file_name, help='Name of the file '\
+        'containing the training images. Should be formatted based on the MNIST format described on the MNIST website.')
+    arg_parser.add_argument("--train_label_file", default=default_training_label_file_name, help='Name of the file '\
+        'containing the training labels. Should be formatted based on the MNIST format described on the MNIST website.')
+    arg_parser.add_argument("--test_image_file", default=default_test_data_file_name, help='Name of the file containing'\
+        'the test images. Should be formatted based on the MNIST format described on the MNIST website.')
+    arg_parser.add_argument("--test_label_file", default=default_test_label_file_name, help='Name of the file'\
+        'containing the test labels. Should be formatted based on the MNIST format described on the MNIST website.')
+    arg_parser.add_argument("--knn_k_value", "-k", type=int, nargs='+', help='List of k values to try in program'\
+        'execution. If in normal mode, if this is not specified, a default k value will be used. If multiple are '\
+        'specified, the accuracy and classification results will be run per k value. If in exhaustive mode and no k '\
+        'values are specified, a large array of k values will be tested')
+    arg_parser.add_argument("--skip_display", "-s", action='store_true')
+
+    parser_results = arg_parser.parse_args()
+
+    run_exhaustive_results = parser_results.exhaustive
+    train_image_file_name = parser_results.train_image_file
+    train_label_file_name = parser_results.train_label_file
+    test_image_file_name = parser_results.test_image_file
+    test_label_file_name = parser_results.test_label_file
+    k_values_to_try = parser_results.knn_k_value
+    skip_display = parser_results.skip_display
+
+    # Load the training data
+    training_data, num_rows_in_img, num_cols_in_img = readMNISTData(train_image_file_name)
+    training_labels = readMNISTLabels(train_label_file_name)
+
+    # Load the test data
+    test_data, num_rows_in_img, num_cols_in_img = readMNISTData(test_image_file_name)
+    test_labels = readMNISTLabels(test_label_file_name)
+
+    # Transpose the training and test data so that each image is a column
+    training_data = np.transpose(training_data)
+    test_data = np.transpose(test_data)
+
+    if (k_values_to_try == None):
+        k_values_to_try = []
+
+    if (run_exhaustive_results):
+        print("Running exhaustive results calcluation")
+        executeExhaustiveResultsComputation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display)
+
+    else:
+        print("Running simple evaluation")
+        executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img, k_values_to_try, skip_display)

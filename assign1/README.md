@@ -10,10 +10,14 @@ the classifier on the test data.
 To run a simple evaluation, consisting of accuracy for a variety of features counts for 784 training samples, accuracy
 for a variety of training sample sizes for a fixed feature count, and plots of eigenvectors, classified images, and
 the reconstructed images from their eigenvector representations, run the following:
-"python3 assign1.py --train_image_file <training image file location> --train_label_file <training label file location>
---test_image_file <test image file location> --test_label_file <test label file location>"
+
+python3 assign1.py --train_image_file <training image file location> --train_label_file <training label file location>
+--test_image_file <test image file location> --test_label_file <test label file location>
+
 This will run with a kNN classifer with k=10. You can specify a list of k values to evaluate by adding the -k flag,
-followed by the k values. To skip plots, add the -s option.
+followed by the k values. To skip plots, add the -s option. To run with the neural network classifier in addition to
+k-NN, add -d (note: this will take considerably longer). This is only an option with the simple evaluation (won't do
+anything if used with the --exhaustive flag).
 
 Files are assumed to be in the format provided on the MNIST website (http://yann.lecun.com/exdb/mnist/).  
 
@@ -31,4 +35,5 @@ The purposes of each of the files are as follows:
 - mnist_reader.py - Contains functions for reading the MNIST data set (images and labels).
 - princ_comp_analysis.py - Contains functions for extracting the eigenvectors and mean of the input data and
     transforming input samples to the eigenvector representation.
+- neural_net_classifier.py - Contains classifier that uses TensorFlow neural net to classify.    
 The remaining files are for testing (unit test and manual test).

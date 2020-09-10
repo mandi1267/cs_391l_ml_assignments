@@ -71,20 +71,27 @@ def displayEigenVectorRepresentationOfImage(eigen_vec_img_representation, eigen_
     plt.imshow(eigen_vector_matrix, interpolation='none')
     plt.show()
 
-def plotGraph(x_values, y_values, x_axis_label, y_axis_label, graph_title):
+def plotGraph(x_values, y_values_dict, x_axis_label, y_axis_label, graph_title, display_color_str_map={}):
     """
     Plot a graph with the given data.
 
     Args:
-        x_values (1D array):    X values to plot
-        y_values (1D array):    Y values to plot. Should have same number of items as x_values
-        x_axis_label (string):  Label for the x axis
-        y_axis_label (string):  Label for the y axis
-        graph_title (string):   Title for the graph
+        x_values (1D array):                                X values to plot
+        y_values (dict of string to 1D array):              Dictionary of y-value label to show in legend to the
+                                                            corresponding y-values to plot. These will be plotted
+                                                            against x_values.
+        x_axis_label (string):                              Label for the x axis
+        y_axis_label (string):                              Label for the y axis
+        graph_title (string):                               Title for the graph
+        display_color_str_map (dict of string to string):   Dictionary of y value label to (see y-values) to the format
+                                                            string that should be used to plot the line for that y-data.
     """
-    plt.plot(x_values, y_values, 'rD-.')
+    for label, y_values in y_values_dict.items():
+        display_str = display_color_str_map.get(label, 'rD-')
+        plt.plot(x_values, y_values, display_str, label = label)
     plt.xlabel(x_axis_label)
     plt.ylabel(y_axis_label)
     plt.title(graph_title)
+    if (len(y_values_dict) > 1):
+        plt.legend()
     plt.show()
-    # TODO verify this

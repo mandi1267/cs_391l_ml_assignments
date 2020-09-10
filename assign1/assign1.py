@@ -1,8 +1,14 @@
+"""
+Main program for executing the demo and exhaustive versions of assignment 1 for CS 393R, Fall 2020.
+
+Author: Amanda Adkins
+"""
 
 from k_nearest_neighbor_classifier import *
 from mnist_reader import *
 from display_utils import *
 from princ_comp_analysis import *
+from neural_net_classifier import *
 import matplotlib.pyplot as plt
 import csv
 
@@ -67,6 +73,15 @@ def getRandomSubsetOfData(data, labels, number_of_samples_to_return):
     return (data_subset, label_subset)
 
 def plotResults(k_nn_results):
+    """
+    Plot the results for the exhaustive execution of assignment 1.
+
+    Plots the best accuracy for each training set size, k value, and feature count.
+
+    Args:
+        k_nn_results (list of KnnResults):  List of results for every execution (each has a different permutation of
+                                            training set size, feature count, and k-value).
+    """
     # Get all unique training sample values
     training_sample_counts = sorted(list(set([knn_result.num_training_samples for knn_result in k_nn_results])))
 
@@ -120,6 +135,15 @@ def plotResults(k_nn_results):
     plt.show()
 
 def writeResultsToFile(k_nn_results, output_file_name):
+    """
+    Write the results from several executions of the k-NN classifier to a file in CSV format.
+
+    Args:
+        k_nn_results (list of KnnResults):  List of results for every execution (each has a different permutation of
+                                            training set size, feature count, and k-value).
+        output_file_name (string):          Name of the file to write the results to.
+    """
+
     with open(output_file_name, 'w') as results_file:
         header_line = ["num_training_samples", "num_principal_components", "num_nearest_neighbors", "accuracy_rate",
             "classification_time_per_sample"]
@@ -133,21 +157,27 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
     num_cols_in_img, k_values_to_try, skip_display):
 
     """
-    TODO
+    Run PCA and k-NN classifiers for many permutations of k value, feature count, and training set size.
+
+    Args:
+        training_data (2D numpy array):     N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        training_labels (1D numpy array):   Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+        num_rows_in_img (int):              Number of rows in an image.
+        num_cols_in_img (int):              Number of columns in an image.
+        k_values_to_try (list of ints):     K values to evaluate. Defaults to a range of values between 1 and 100 if this is empty.
+        skip_display (boolean):             If true, don't display plots. If false, display the plots.
     """
 
     img_vector_size = num_rows_in_img * num_cols_in_img
 
     num_training_size_increment = 50
     num_samples_to_use = [min(num_training_size_increment * i, img_vector_size)  for i in range(1, 1 + ceil(img_vector_size / num_training_size_increment))]
-    # num_samples_to_use = [105]
-    print(num_samples_to_use)
 
     test_data_subset, test_label_subset = getRandomSubsetOfData(test_data, test_labels, 1000)
-
-    accuracy_rate_by_train_set_size_and_feature_count = {}
-
-    # Make map where outer key is training set size,
 
     k_nn_results = []
     results_by_feature_count = {}
@@ -167,7 +197,6 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
             num_features_to_try.extend([i for i in range(max_small_inc_range, train_sample_size + 1, feature_count_inc_size)])
             if (train_sample_size not in num_features_to_try):
                 num_features_to_try.append(train_sample_size)
-        # num_features_to_try = [10, 20]
 
         # Find the eigenvector representation from the training data
         mean_feature_vec, eigenvectors_of_train = hw1FindEigendigits(train_data_subset)
@@ -219,17 +248,18 @@ def executeExhaustiveResultsComputation(training_data, training_labels, test_dat
     output_file_name = "assign_1_results_" + datetime.datetime.now().replace(microsecond=0).isoformat() + ".csv"
     writeResultsToFile(k_nn_results, output_file_name)
 
-    for feature_count in num_features_to_try:
-        results_for_feature_count = results_by_feature_count[feature_count]
-        plt.plot(results_for_feature_count[0], results_for_feature_count[1], 'rD-.')
+    if (not skip_display):
+        for feature_count in num_features_to_try:
+            results_for_feature_count = results_by_feature_count[feature_count]
+            plt.plot(results_for_feature_count[0], results_for_feature_count[1], 'rD-.')
 
-        plt.xlabel("K in KNN")
-        plt.ylabel("Accuracy Rate")
-        plt.title("Accuracy Rate by K Value for training set size " + str(train_sample_size) + " and " + str(feature_count) + " principal components")
-        plt.legend()
-        plt.show()
+            plt.xlabel("K in KNN")
+            plt.ylabel("Accuracy Rate")
+            plt.title("Accuracy Rate by K Value for training set size " + str(train_sample_size) + " and " + str(feature_count) + " principal components")
+            plt.legend()
+            plt.show()
 
-    plotResults(k_nn_results)
+        plotResults(k_nn_results)
 
 def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data, training_labels, test_data,
     test_labels, skip_display):
@@ -296,12 +326,39 @@ def evaluateAccuracyForFixedTrainingSetSize(k_val_for_classifier, training_data,
         print("(" + str(classifier_results[i]) + ", " + str(num_features_to_try[i]) + ")")
 
     if (not skip_display):
-        plotGraph(num_features_to_try, classifier_results, "Number of features (eigenvectors) in classifier",
+        plotGraph(num_features_to_try, {"kNN accuracy": classifier_results}, "Number of features (eigenvectors) in classifier",
         "Accuracy rate", ("Accuracy rate by number of eigenvectors used, for " + str(full_train_set_size) +
         " samples and k=" + str(k_val_for_classifier)))
 
+def evaluateNeuralNet(train_data, train_labels, test_data, test_labels, using_full_img):
+    """
+    Evaluate a neural net classifier's accuracy.
+
+    Args:
+        train_data (2D numpy array):        N x M matrix with the training data, with M columns (one per sample) and N
+                                            rows (one per pixel).
+        train_labels (1D numpy array):      Labels for the training data. Has M entries.
+        test_data (2D numpy array):         N x L matrix with the test data, with L columns (one per test sample) and N
+                                            rows (one per pixel).
+        test_labels (1D numpy array):       Labels for the test data. Has L entries.
+        using_full_img (boolean):           True if the neural net is being executed on the raw image data (and thus
+                                            the data should be normalized), false if the neural net is working on a
+                                            transformed feature representation and no additional transformation should
+                                            be applied.
+    Returns:
+        Tuple of accuracy and average time to classify each sample.
+    """
+
+    classifier = NeuralNetClassifier()
+    if (using_full_img):
+        train_data = normalizeImageDataForNeuralNet(train_data)
+        test_data = normalizeImageDataForNeuralNet(test_data)
+    classifier.trainClassifier(train_data, train_labels)
+    results = classifier.testClassifier(test_data, test_labels)
+    return results
+
 def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_use, training_data, training_labels,
-    test_data, test_labels, skip_display):
+    test_data, test_labels, skip_display, run_neural_net):
 
     """
     Evaluate the accuracy for a fixed feature count and variable training set sizes.
@@ -319,11 +376,14 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
         test_labels (1D numpy array):       Labels for the test data. Has L entries.
         skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
                                             displayed.
+        run_neural_net (boolean):           True if the neural net classifiers should be evaluated, false if we should
+                                            just use k-NN
     """
     full_train_set_size = training_data.shape[1]
 
     num_training_size_increment = 50
     training_set_sizes_to_try = [min(num_training_size_increment * i, full_train_set_size)  for i in range(1, 1 + ceil(full_train_set_size / num_training_size_increment))]
+    training_set_sizes_to_try = [50]
 
     # If the feature count is greater than the smallest training set size to use, increase the feature count to be the
     # minimum value
@@ -337,8 +397,14 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
         print("Changing to min training set size")
         k_val_for_classifier = training_set_sizes_to_try[0]
 
-    classifier_results = []
+    knn_classifier_results = []
+    full_feature_nn_results = []
+    reduced_feature_nn_results = []
     pca_time_results = []
+    knn_classification_time_results = []
+    full_nn_time_results = []
+    reduced_feature_nn_time_results = []
+
     for training_set_size in training_set_sizes_to_try:
         print("Train set size: " + str(training_set_size) + ", Feature count " + str(feature_count_to_use))
 
@@ -359,17 +425,56 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
         # Train and run the classifier and store the accuracy results
         classifier = KNearestNeighborClassifier(k_val_for_classifier, feature_count_to_use)
         classifier.trainClassifier(transformed_training_data, train_label_subset)
-        classifier_results.append(classifier.testClassifier(transformed_test_data, test_labels)[0])
+        knn_result = classifier.testClassifier(transformed_test_data, test_labels)
+        knn_classifier_results.append(knn_result[0])
+        knn_classification_time_results.append(knn_result[1])
 
-    print("Results (accuracy rate, training sample size)")
-    for i in range(len(training_set_sizes_to_try)):
-        print("(" + str(classifier_results[i]) + ", " + str(training_set_sizes_to_try[i]) + ")")
+        if (run_neural_net):
+            print("Testing full feature nn")
+            full_feature_nn_result = evaluateNeuralNet(train_data_subset, train_label_subset, test_data, test_labels, True)
+            full_feature_nn_results.append(full_feature_nn_result[0])
+            full_nn_time_results.append(full_feature_nn_result[1])
+            print("Testing 25 feature nn")
+            reduced_feature_nn_result = evaluateNeuralNet(transformed_training_data, train_label_subset, transformed_test_data, test_labels, False)
+            reduced_feature_nn_results.append(reduced_feature_nn_result[0])
+            reduced_feature_nn_time_results.append(reduced_feature_nn_result[1])
+
+    if (run_neural_net):
+        print("Results (KNN accuracy rate, full feature neural net accuracy rate, limited feature neural net accuracy rate, training sample size)")
+        for i in range(len(training_set_sizes_to_try)):
+            print("(" + (','.join(map(str, [knn_classifier_results[i], full_feature_nn_results[i], reduced_feature_nn_results[i], training_set_sizes_to_try[i]]))) + ")")
+        print("Results (KNN time, full feature neural net time, limited feature neural net time, training sample size)")
+        for i in range(len(training_set_sizes_to_try)):
+            print("(" + (','.join(map(str, [knn_classification_time_results[i], full_nn_time_results[i], reduced_feature_nn_time_results[i], training_set_sizes_to_try[i]]))) + ")")
+    else:
+        print("Results (KNN accuracy rate, training sample size)")
+        for i in range(len(training_set_sizes_to_try)):
+            print("(" + (','.join(map(str, [knn_classifier_results[i], training_set_sizes_to_try[i]]))) + ")")
+        print("Results (KNN time, training sample size)")
+        for i in range(len(training_set_sizes_to_try)):
+            print("(" + (','.join(map(str, [knn_classification_time_results[i], training_set_sizes_to_try[i]]))) + ")")
 
     if (not skip_display):
-        plotGraph(training_set_sizes_to_try, classifier_results, "Number of training samples",
-        "Accuracy rate", ("Accuracy rate by number of training samples used, for feature count " + str(feature_count_to_use) +
-        " and k=" + str(k_val_for_classifier)))
-        plotGraph(training_set_sizes_to_try, pca_time_results, "Number of training samples",
+        if (run_neural_net):
+            accuracy_y_vals = {"kNN": knn_classifier_results, "Original Image Neural Net": full_feature_nn_results, "Principal Components Neural Net": reduced_feature_nn_results}
+            plotGraph(training_set_sizes_to_try, accuracy_y_vals, "Number of training samples",
+            "Accuracy rate", ("Accuracy rate by number of training samples used, for feature count " + str(feature_count_to_use) +
+            " and k=" + str(k_val_for_classifier)),
+            {"kNN": 'bD-', "Original Image Neural Net": 'gD-', "Principal Components Neural Net": 'mD-'})
+            time_y_vals = {"kNN": knn_classification_time_results, "Original Image Neural Net": full_nn_time_results, "Principal Components Neural Net": reduced_feature_nn_time_results}
+            plotGraph(training_set_sizes_to_try, time_y_vals, "Number of training samples", "Avg time per test sample",
+                ("Avg Classification Time Per Test Sample for feature count " + str(feature_count_to_use) +
+                " and k=" + str(k_val_for_classifier)), {"kNN": 'bD-', "Original Image Neural Net": 'gD-', "Principal Components Neural Net": 'mD-'})
+        else:
+            accuracy_y_vals = {"kNN": knn_classifier_results}
+            plotGraph(training_set_sizes_to_try, accuracy_y_vals, "Number of training samples",
+            "Accuracy rate", ("Accuracy rate by number of training samples used, for feature count " + str(feature_count_to_use) +
+            " and k=" + str(k_val_for_classifier)), {"kNN": 'bD-'})
+            time_y_vals = {"kNN": knn_classification_time_results}
+            plotGraph(training_set_sizes_to_try, time_y_vals, "Number of training samples", "Avg time per test sample",
+                ("Avg Classification Time Per Test Sample for feature count " + str(feature_count_to_use) +
+                " and k=" + str(k_val_for_classifier)), {"kNN": 'bD-'})
+        plotGraph(training_set_sizes_to_try, {"PCA time": pca_time_results}, "Number of training samples",
             "Time to compute principal component vectors", "Time to compute principal components")
 
 def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, feature_count_to_use, k_val_for_classifier,
@@ -428,7 +533,7 @@ def displayResultsOfPcaAndClassification(num_rows_in_img, num_cols_in_img, featu
             num_rows_in_img, num_cols_in_img, mean_feature_vec)
 
 def executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img, num_cols_in_img,
-    k_values_to_try, skip_display):
+    k_values_to_try, skip_display, run_neural_net):
 
     """
     Execute a simple evaluation that computes accuracy for one fixed feature count and a variety of training set sizes,
@@ -450,6 +555,8 @@ def executeSimpleEvaluation(training_data, training_labels, test_data, test_labe
                                             demonstrated will be executed once per k value.
         skip_display (boolean):             True if the display of plots should be skipped, false if plots should be
                                             displayed.
+        run_neural_net (boolean):           True if the neural net classifiers should be evaluated, false if we should
+                                            just use k-NN
     """
 
     if (len(k_values_to_try) == 0):
@@ -499,7 +606,7 @@ def executeSimpleEvaluation(training_data, training_labels, test_data, test_labe
         # Training sample count must be greater than or equal to the fixed feature count
         feature_count_to_use = 25 # TODO
         evaluateAccuracyForFixedFeatureCount(k_val, feature_count_to_use, train_data_subset, train_label_subset,
-            test_data, test_labels, skip_display)
+            test_data, test_labels, skip_display, run_neural_net)
 
         # Display the eigenvectors
         # Display some images transformed to the eigenvector representation
@@ -536,7 +643,10 @@ def getCmdLineArgs():
         'execution. If in normal mode, if this is not specified, a default k value will be used. If multiple are '\
         'specified, the accuracy and classification results will be run per k value. If in exhaustive mode and no k '\
         'values are specified, a large array of k values will be tested')
-    arg_parser.add_argument("--skip_display", "-s", action='store_true')
+    arg_parser.add_argument("--skip_display", "-s", action='store_true',
+        help='This option should be specified to skip the plots and image display.')
+    arg_parser.add_argument("--neural-net", "-n", action='store_true',
+        help='This option should be specified to run the neural net classifiers in the simple evaluation')
 
     return arg_parser.parse_args()
 
@@ -551,6 +661,7 @@ if __name__=="__main__":
     test_label_file_name = parser_results.test_label_file
     k_values_to_try = parser_results.knn_k_value
     skip_display = parser_results.skip_display
+    run_neural_net = parser_results.neural_net
 
     # Load the training data
     training_data, num_rows_in_img, num_cols_in_img = readMNISTData(train_image_file_name)
@@ -576,4 +687,4 @@ if __name__=="__main__":
     else:
         print("Running simple evaluation")
         executeSimpleEvaluation(training_data, training_labels, test_data, test_labels, num_rows_in_img,
-            num_cols_in_img, k_values_to_try, skip_display)
+            num_cols_in_img, k_values_to_try, skip_display, run_neural_net)

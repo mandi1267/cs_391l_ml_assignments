@@ -76,7 +76,9 @@ def plotGraph(x_values, y_values_dict, x_axis_label, y_axis_label, graph_title, 
     Plot a graph with the given data.
 
     Args:
-        x_values (1D array):                                X values to plot
+        x_values (1D array/dict of str to 1D array):        X values to plot. Either a list of x values, or a dictionary
+                                                            mapping the y label to the x values corresponding to that y
+                                                            label.
         y_values (dict of string to 1D array):              Dictionary of y-value label to show in legend to the
                                                             corresponding y-values to plot. These will be plotted
                                                             against x_values.
@@ -86,9 +88,13 @@ def plotGraph(x_values, y_values_dict, x_axis_label, y_axis_label, graph_title, 
         display_color_str_map (dict of string to string):   Dictionary of y value label to (see y-values) to the format
                                                             string that should be used to plot the line for that y-data.
     """
+    using_x_val_dict = type(x_values) is dict
     for label, y_values in y_values_dict.items():
         display_str = display_color_str_map.get(label, 'rD-')
-        plt.plot(x_values, y_values, display_str, label = label)
+        if (using_x_val_dict):
+            plt.plot(x_values[label], y_values, display_str, label = label)
+        else:
+            plt.plot(x_values, y_values, display_str, label = label)
     plt.xlabel(x_axis_label)
     plt.ylabel(y_axis_label)
     plt.title(graph_title)

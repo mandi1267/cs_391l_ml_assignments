@@ -383,7 +383,6 @@ def evaluateAccuracyForFixedFeatureCount(k_val_for_classifier, feature_count_to_
 
     num_training_size_increment = 50
     training_set_sizes_to_try = [min(num_training_size_increment * i, full_train_set_size)  for i in range(1, 1 + ceil(full_train_set_size / num_training_size_increment))]
-    training_set_sizes_to_try = [50]
 
     # If the feature count is greater than the smallest training set size to use, increase the feature count to be the
     # minimum value

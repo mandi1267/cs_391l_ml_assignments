@@ -376,6 +376,7 @@ def chooseWindows(hyperparam_results, new_window_threshold, train_timestamps, tr
         if (curr_window_rbf_count == 0):
             curr_window_rbf_sum = hyperparams.rbf_len
             curr_window_rbf_count += 1
+            prev_window_end = window_end
         else:
             if (abs(hyperparams.rbf_len - (curr_window_rbf_sum / curr_window_rbf_count)) > new_window_threshold):
                 curr_window_rbf_count = 0
@@ -550,7 +551,7 @@ def sortTimestampsAndValuesByTime(timestamps, values):
 
 def executeAssign3WithConfig(train_data_sets, test_data_set, marker_num, coord_string):
 
-    # Train whole thing with one set of hyperparams
+    # Get the full 3d pose for the marker for the training and test data
     train_full_3d_pose_for_marker = [data_set.getPoseSequenceForMarkerNum(marker_num) for data_set in train_data_sets]
     test_full_3d_pose_for_marker = test_data_set.getPoseSequenceForMarkerNum(marker_num)
 
@@ -565,32 +566,33 @@ def executeAssign3WithConfig(train_data_sets, test_data_set, marker_num, coord_s
     train_data_single_marker_times, train_data_single_marker_single_coords = sortTimestampsAndValuesByTime(train_data_single_marker_times, train_data_single_marker_single_coords)
 
     plotTrain(train_data_single_marker_times, train_data_single_marker_single_coords)
-    #
-    # # Train single GP model (same params for whole time)
-    # gp_initial_hyperparams = GaussianProcessHyperparams(1, 0.5, 0.6)
-    # global_params_gp_model = GaussianProcessModel(gp_initial_hyperparams, 5, True)
-    # global_params_gp_model.trainModel(train_data_single_marker_times, train_data_single_marker_single_coords)
-    #
-    # # Get global hyperparams
-    # gp_model_global_model_wrapper = GaussianProcessModelWithVaryingHyperparameters([(0.0, global_params_gp_model)])
-    # trajectory_prediction, trajectory_std_dev = gp_model_global_model_wrapper.predictTrajectory(test_data_single_marker_times)
-    #
-    # # Plot prediction + var for test_data times
-    # plotPredictionVsActual(test_data_single_marker_times, trajectory_prediction, trajectory_std_dev, test_data_single_marker_single_coords, marker_num, coord_string, train_data_single_marker_times, train_data_single_marker_single_coords)
-    #
-    # # Compute MSE for test data coords
-    # mean_square_error_single_hyperparams = computeTrajectoryError(test_data_single_marker_single_coords, trajectory_prediction)
-    # print("Mean square error for global set of hyperparams " + str(mean_square_error_single_hyperparams))
 
-    min_window_inc = 0.05
+    # Train single GP model (same params for whole time)
+    gp_initial_hyperparams = GaussianProcessHyperparams(1, 0.5, 0.6)
+    global_params_gp_model = GaussianProcessModel(gp_initial_hyperparams, 5, True)
+    global_params_gp_model.trainModel(train_data_single_marker_times, train_data_single_marker_single_coords)
 
-    # Note: Use these values instead for a more thorough evaluation
+    # Get global hyperparams
+    gp_model_global_model_wrapper = GaussianProcessModelWithVaryingHyperparameters([(0.0, global_params_gp_model)])
+    trajectory_prediction, trajectory_std_dev = gp_model_global_model_wrapper.predictTrajectory(test_data_single_marker_times)
+
+    # Plot prediction + var for test_data times
+    plotPredictionVsActual(test_data_single_marker_times, trajectory_prediction, trajectory_std_dev,
+                           test_data_single_marker_single_coords, marker_num, coord_string, train_data_single_marker_times, train_data_single_marker_single_coords)
+
+    # Compute MSE for test data coords
+    mean_square_error_single_hyperparams = computeTrajectoryError(test_data_single_marker_single_coords, trajectory_prediction)
+    print("Mean square error for global set of hyperparams " + str(mean_square_error_single_hyperparams))
+
+    # Note: Use these values instead of those below for a more thorough evaluation
     # window_sizes = [0.5, 0.75, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5]
     # window_inc_multipliers = [1, 2, 5, 10, 15, 20]
+    # min_window_inc = 0.05
     # thresholds = [0.05, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 10]
 
+    min_window_inc = 0.1
     window_sizes = [2]
-    window_inc_multipliers = [2]
+    window_inc_multipliers = [1]
     thresholds = [0.5]
 
     mse_by_window_config = []
@@ -625,9 +627,11 @@ def executeAssign3WithConfig(train_data_sets, test_data_set, marker_num, coord_s
                 best_gp_model_wrapper = gp_sliding_window_model_wrapper
                 best_sliding_gp_model_mse = mean_square_error_sliding_hyperparams
 
-    new_fpath = "sliding_window_mses_marker_" + str(marker_num) + "_coord_" + coord_string + "_" + datetime.datetime.now().replace(microsecond=0).isoformat() + ".pkl"
-    joblib.dump(mse_by_window_config, new_fpath)
+    # Uncomment to write data to file
+    # new_fpath = "sliding_window_mses_marker_" + str(marker_num) + "_coord_" + coord_string + "_" + datetime.datetime.now().replace(microsecond=0).isoformat() + ".pkl"
+    # joblib.dump(mse_by_window_config, new_fpath)
 
+    # Compute the prediction and the standard deviation for the sliding window approach and plot the results
     sliding_window_trajectory_pred, sliding_window_traj_std_dev = \
         best_gp_model_wrapper.predictTrajectory(test_data_single_marker_times)
     plotPredictionVsActual(test_data_single_marker_times, sliding_window_trajectory_pred,
@@ -654,7 +658,7 @@ def executeAssign3WithConfig(train_data_sets, test_data_set, marker_num, coord_s
     # Plot the hyperparameters
     plotHyperparamsBySlidingWindow(hyperparam_results_for_sliding_window)
 
-    # print("Mean square error for global set of hyperparams " + str(mean_square_error_single_hyperparams))
+    print("Mean square error for global set of hyperparams " + str(mean_square_error_single_hyperparams))
     print("Mean squared error for sliding window hyperparams" + str(best_sliding_gp_model_mse))
 
 def executeAssign3():

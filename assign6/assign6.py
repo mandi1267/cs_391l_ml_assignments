@@ -60,8 +60,10 @@ def displayCNNAccuracy(cnn_accuracy, num_train, num_test):
 
 def executeCNNClassification(train_data, test_data):
 
+    cnn_epochs = 10
+
     cnn_classifier = CnnClassifier()
-    cnn_classifier.trainModel(train_data[0], train_data[1])
+    cnn_classifier.trainModel(train_data[0], train_data[1], cnn_epochs)
     cnn_accuracy = cnn_classifier.testModel(test_data[0], test_data[1])
 
     displayCNNAccuracy(cnn_accuracy, train_data[0].shape[0], test_data[0].shape[0])
@@ -126,12 +128,14 @@ def classifyWithGanDiscriminator(discriminator, test_data):
     print("Classifying")
     test_images = test_data[0]
     test_labels = test_data[1]
+
+    test_images = normalizeToFloatRange(test_images)
     accuracy = discriminator.getClassificationAccuracy(test_images, test_labels)
 
-    classification = discriminator.getClassification(test_data[0])
+    classification = discriminator.getClassification(test_images)
     # print(classification)
     # print(test_labels)
-    correct_label_vec = test_data[1] - classification
+    correct_label_vec = test_labels - classification
     misclassified_indices = np.nonzero(correct_label_vec)
     # print(misclassified_indices)
 
@@ -156,7 +160,7 @@ def trainGAN(generator, discriminator, train_data, latent_space_dim, num_classes
     full_gan = Gan(generator, discriminator)
     # TODO create latent data and classes to compute resutls for
     # num_epochs = 5
-    num_epochs = 100
+    num_epochs = 50
     batch_size = 64
 
     constistent_samples_num = 25
@@ -182,7 +186,7 @@ def createGeneratorAndDiscriminator(num_classes, latent_space_dim):
 
 def executeAssign6(train_data, test_data):
 
-    # executeCNNClassification(train_data, test_data)
+    executeCNNClassification(train_data, test_data)
 
     num_classes = 10
     latent_space_dim = 100
@@ -213,8 +217,8 @@ def getCmdLineArgs():
     default_test_data_file_name = "/Users/mandiadkins/Downloads/t10k-images.idx3-ubyte"
     default_test_label_file_name = "/Users/mandiadkins/Downloads/t10k-labels.idx1-ubyte"
 
-    default_train_set_size = 20000 # TODO
-    # default_train_set_size = 64
+    # default_train_set_size = 20000 # TODO
+    default_train_set_size = 1000
     default_test_set_size = 10000 # TODO
     # default_test_set_size = 64 # TODO
 

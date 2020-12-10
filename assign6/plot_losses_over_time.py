@@ -2,7 +2,7 @@ import joblib
 # from gan_example import *
 import matplotlib.pyplot as plt
 import os
-import tensorflow as tf
+# import tensorflow as tf
 import collections
 
 class Losses(object):
@@ -15,7 +15,49 @@ class Losses(object):
 
 
 def plotLossesByIter(loss_by_iter):
-    #
+
+    epochs = set([iter for (epoch, iter) in loss_by_iter.keys()])
+    epochs = [epoch for epoch in epochs]
+
+    discrim_loss_by_epoch = collections.defaultdict(lambda: 0)
+    gen_loss_by_epoch = collections.defaultdict(lambda: 0)
+
+
+    for ((epoch, iter), (gen_loss, disc_loss)) in loss_by_iter.items():
+        print(gen_loss.numpy())
+        gen_loss_by_epoch[iter] += gen_loss.numpy()
+        discrim_loss_by_epoch[iter] += disc_loss
+
+    # print(epochs)
+
+
+    generator_fool_loss = [gen_loss_by_epoch[epoch] for epoch in epochs]
+    discriminator_fool_loss = [discrim_loss_by_epoch[epoch] for epoch in epochs]
+
+    print(len(generator_fool_loss))
+    # print(generator_fool_loss)
+
+    # iterations_nums = [iter for iter in loss_by_iter.keys()]
+
+    # generator_fool_loss = [loss_by_iter[iteration].generator_train_fool_loss for iteration in iterations_nums]
+    # discriminator_fool_loss = [loss_by_iter[iteration].discriminator_fool_loss for iteration in iterations_nums]
+
+    # plt.plot(iterations_nums, generator_fool_loss, label="Generator loss")
+    # plt.plot(iterations_nums, discriminator_fool_loss, label="Discriminator loss")
+
+
+    plt.plot(epochs, generator_fool_loss, label="Generator loss")
+    plt.plot(epochs, discriminator_fool_loss, label="Discriminator loss")
+
+    plt.xlabel("Iteration number")
+    plt.ylabel("Loss")
+    plt.ylim((0, 3))
+    plt.title("Discriminator and generator losses")
+    plt.legend()
+    plt.show()
+
+def plotLossesAcGAN(loss_by_iter):
+
     # epochs = set([iter for (epoch, iter) in loss_by_iter.keys()])
     # epochs = [epoch for epoch in epochs]
     #
@@ -24,27 +66,31 @@ def plotLossesByIter(loss_by_iter):
     #
     #
     # for ((epoch, iter), (gen_loss, disc_loss)) in loss_by_iter.items():
-    #     gen_loss_by_epoch[iter] += gen_loss
+    #     print(gen_loss.numpy())
+    #     gen_loss_by_epoch[iter] += gen_loss.numpy()
     #     discrim_loss_by_epoch[iter] += disc_loss
     #
     # print(epochs)
-    #
-    #
+
+
     # generator_fool_loss = [gen_loss_by_epoch[epoch] for epoch in epochs]
     # discriminator_fool_loss = [discrim_loss_by_epoch[epoch] for epoch in epochs]
 
-    iterations_nums = [iter for iter in loss_by_iter.keys()]
+    # print(len(generator_fool_loss))
+    # print(generator_fool_loss)
 
+    iterations_nums = [iter for iter in loss_by_iter.keys()]
+    #
     generator_fool_loss = [loss_by_iter[iteration].generator_train_fool_loss for iteration in iterations_nums]
     discriminator_fool_loss = [loss_by_iter[iteration].discriminator_fool_loss for iteration in iterations_nums]
 
     plt.plot(iterations_nums, generator_fool_loss, label="Generator loss")
     plt.plot(iterations_nums, discriminator_fool_loss, label="Discriminator loss")
-
-
+    #
+    #
     # plt.plot(epochs, generator_fool_loss, label="Generator loss")
     # plt.plot(epochs, discriminator_fool_loss, label="Discriminator loss")
-
+    plt.ylim((0, 3))
     plt.xlabel("Iteration number")
     plt.ylabel("Loss")
     plt.title("Discriminator and generator losses")
@@ -54,12 +100,14 @@ def plotLossesByIter(loss_by_iter):
 
 if __name__ == '__main__':
     results_file_name = "gan_results_iter_15599_2020-12-08T21:11:18.pkl"
-
     (train_size, loss_by_iter, n_batch, n_epochs) = joblib.load(results_file_name)
+    plotLossesAcGAN(loss_by_iter)
+
     #
     # results_file_name = "tf_gan_results_iter_900_2020-12-09T20:39:05.pkl"
     # results_file_name = "tf_gan_results_iter_1000_2020-12-09T20:51:11.pkl"
-    # (losses, n_epochs) = joblib.load(results_file_name)
+    results_file_name = "tf_gan_results_iter_5925_2020-12-10T10:01:53.pkl"
+    (losses, n_epochs) = joblib.load(results_file_name)
     # print(losses.keys())
 
     # print(train_size)
@@ -67,8 +115,8 @@ if __name__ == '__main__':
     # print(n_batch)
     # print(n_epochs)
     #
-    # plotLossesByIter(losses)
-    plotLossesByIter(loss_by_iter)
+    plotLossesByIter(losses)
+    # plotLossesByIter(loss_by_iter)
 
     # generator_optimizer = None
     # discriminator_optimizer = None

@@ -126,6 +126,8 @@ import torchvision
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import datetime
+import joblib
 # from IPython.display import HTML
 
 # Set random seed for reproducibility
@@ -586,6 +588,10 @@ D_losses = []
 iters = 0
 
 print("Starting Training Loop...")
+date_start_str = datetime.datetime.now().replace(microsecond=0).isoformat()
+gen_file_prefix = "pytorch_generator_" + date_start_str + "_"
+discrim_file_prefix = "pytorch_discrim_" + date_start_str + "_"
+
 # For each epoch
 for epoch in range(num_epochs):
     # For each batch in the dataloader
@@ -658,6 +664,9 @@ for epoch in range(num_epochs):
             img_list.append(vutils.make_grid(fake, padding=2, normalize=True))
 
         iters += 1
+    torch.save(netD.state_dict(), discrim_file_prefix + str(epoch))
+    torch.save(netG.state_dict(), gen_file_prefix + str(epoch))
+    joblib.dump((G_losses, D_losses), "pytorch_losses_" + date_start_str + "_" + str(epoch))
 
 ######################################################################
 # Results

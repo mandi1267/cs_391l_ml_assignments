@@ -64,17 +64,17 @@ class Discriminator(object):
         fe = Dropout(0.5)(fe)
         # normal
         fe = Conv2D(64, (3, 3), padding='same', kernel_initializer=init)(fe)
-        fe = BatchNormalization()(fe)
+        # fe = BatchNormalization()(fe)
         fe = LeakyReLU(alpha=0.2)(fe)
         fe = Dropout(0.5)(fe)
         # downsample to 7x7
         fe = Conv2D(128, (3, 3), strides=(2, 2), padding='same', kernel_initializer=init)(fe)
-        fe = BatchNormalization()(fe)
+        # fe = BatchNormalization()(fe)
         fe = LeakyReLU(alpha=0.2)(fe)
         fe = Dropout(0.5)(fe)
         # normal
         fe = Conv2D(256, (3, 3), padding='same', kernel_initializer=init)(fe)
-        fe = BatchNormalization()(fe)
+        # fe = BatchNormalization()(fe)
         fe = LeakyReLU(alpha=0.2)(fe)
         fe = Dropout(0.5)(fe)
         # flatten feature maps
@@ -150,7 +150,7 @@ class Generator(object):
         merge = Concatenate()([gen, li])
         # upsample to 14x14
         gen = Conv2DTranspose(192, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init)(merge)
-        gen = BatchNormalization()(gen)
+        # gen = BatchNormalization()(gen)
         gen = Activation('relu')(gen)
         # upsample to 28x28
         gen = Conv2DTranspose(1, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init)(gen)
@@ -276,6 +276,12 @@ class Losses(object):
         self.discriminator_fool_loss = discriminator_realness_loss
 
 
+    def __str__(self):
+        return "Losses(discrim_real:" + str(self.discriminator_fool_loss) + ",discrim_class:" + str(self.discriminator_class_loss) + ",gen_fool:" + str(self.generator_train_realness_loss) \
+        + ",gen_class:" + str(self.generator_class_loss) + ")"
+
+
+
 
 def runTrainingIterationOnBatch(real_images, real_image_labels, discriminator, generator, full_gan,
                                 test_latent_data, test_latent_classes, latent_dim, num_classes):
@@ -352,6 +358,9 @@ def trainGanByBatches(g_model, d_model, gan_model, dataset, latent_dim, test_lat
                                 test_latent_data, test_gen_classes, latent_dim, num_classes)
         loss_by_iter[i] = losses
         generated_images_by_iter[i] = generated_test_images
+
+        if ((i % 10) == 0):
+            print("Losses " + str(i) + ": "  + str(losses))
 
         if ((i % 100) == 0):
             print("Iteration " + str(i))

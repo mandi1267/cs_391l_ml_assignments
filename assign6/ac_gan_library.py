@@ -94,7 +94,8 @@ class Discriminator(object):
         return (real_sample_loss, class_loss)
 
     def getClassification(self, images):
-        realness_score, class_labels = self.model.predict(images)
+        realness_score, class_labels_score = self.model.predict(images)
+        class_labels = np.argmax(class_labels_score, axis=1)
         return class_labels
 
     def getClassificationAccuracy(self, test_images, test_labels):
@@ -288,17 +289,21 @@ def runTrainingIterationOnBatch(real_images, real_image_labels, discriminator, g
     (discriminator_realness_training_loss_real_samples, discriminator_class_training_loss_real_samples) = \
         discriminator.getRealityAndClassLoss(real_images, realness_label_real_samples, real_image_labels)
 
-    latent_dim_reps, fake_image_class_labels = createGeneratorInput(latent_dim, num_samples, num_classes)
-    fake_images = generator.generateData(latent_dim_reps, fake_image_class_labels)
+    latent_dim_reps, fake_image_class_labels = createGeneratorInput(latent_dim, num_samples * 2, num_classes)
+    fake_images = generator.generateData(latent_dim_reps[:num_samples, :], fake_image_class_labels[:num_samples])
 
-    fake_image_realness_for_generator = ones((num_samples, 1))
+    fake_image_realness_for_generator = ones((2 * num_samples, 1))
     fake_image_realness_for_discriminator = zeros((num_samples, 1))
 
     # update discriminator model weights
     (discriminator_realness_training_loss_fake_samples, discriminator_class_training_loss_fake_samples) = \
-        discriminator.getRealityAndClassLoss(fake_images, fake_image_realness_for_discriminator, fake_image_class_labels)
+        discriminator.getRealityAndClassLoss(fake_images, fake_image_realness_for_discriminator, fake_image_class_labels[:num_samples])
 
     # update the generator via the discriminator's error
+    generator_realness_training_loss, generator_class_training_loss = \
+        full_gan.trainAndGetRealityAndClassLoss(latent_dim_reps, fake_image_class_labels,
+                                                fake_image_realness_for_generator)
+
     generator_realness_training_loss, generator_class_training_loss = \
         full_gan.trainAndGetRealityAndClassLoss(latent_dim_reps, fake_image_class_labels,
                                                 fake_image_realness_for_generator)
@@ -314,13 +319,13 @@ def runTrainingIterationOnBatch(real_images, real_image_labels, discriminator, g
 
 
 # train the generator and discriminator
-def train(g_model, d_model, gan_model, dataset, latent_dim, test_latent_data, test_gen_classes, n_epochs=100, n_batch=64):
+def trainGanByBatches(g_model, d_model, gan_model, dataset, latent_dim, test_latent_data, test_gen_classes, n_epochs=100, n_batch=64):
     date_start_str = datetime.datetime.now().replace(microsecond=0).isoformat()
     checkpoint_dir = './training_checkpoints_' + date_start_str
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=gan_model.opt,
                                      discriminator_optimizer=d_model.opt,
-                                     generator=generator.model,
+                                     generator=g_model.model,
                                      discriminator=d_model.model)
 
     # calculate the number of batches per training epoch
@@ -348,73 +353,45 @@ def train(g_model, d_model, gan_model, dataset, latent_dim, test_latent_data, te
         loss_by_iter[i] = losses
         generated_images_by_iter[i] = generated_test_images
 
-
-        # # get randomly selected 'real' samples
-        # # update discriminator model weights
-        # (real_img_loss_real_imgs, class_loss_real_imgs) = d_model.getRealityAndClassLoss(X_real, y_real, labels_real)
-        # # _, d_r1, d_r2 = d_model.train_on_batch(X_real, [y_real, labels_real])
-        #
-        # # generate 'fake' examples
-        # X_fake, labels_fake, y_fake = generateFakeSamples(g_model, latent_dim, half_batch, num_classes)
-        # # print(X_fake.shape)
-        #
-        # # update discriminator model weights
-        # (real_img_loss_fake_imgs, class_loss_fake_imgs) = d_model.getRealityAndClassLoss(X_fake, y_fake, labels_fake)
-        # # _, d_f, d_f2 = d_model.train_on_batch(X_fake, [y_fake, labels_fake])
-        # # prepare points in latent space as input for the generator
-        # [z_input, z_labels] = createGeneratorInput(latent_dim, n_batch, num_classes)
-        # # create inverted labels for the fake samples
-        # y_gan = ones((n_batch, 1))
-        # # update the generator via the discriminator's error
-        # g_1, g_2 = gan_model.trainAndGetRealityAndClassLoss(z_input, z_labels, y_gan)
-        # # summarize loss on this batch
-        # print('>%d, dr[%.3f,%.3f], df[%.3f,%.3f], g[%.3f,%.3f]' % (i + 1, real_img_loss_real_imgs, class_loss_real_imgs, real_img_loss_fake_imgs, class_loss_fake_imgs, g_1, g_2))
-        #
-        # loss_by_iter[i] = Losses(generator_train_fool_loss=g_1, generator_class_loss=g_2,
-        #                          discriminator_fool_loss=(real_img_loss_real_imgs + real_img_loss_fake_imgs), discriminator_class_loss=(class_loss_real_imgs + class_loss_fake_imgs))
-        # evaluate the model performance every 'epoch'
-
-        if ((i % 50) == 0):
+        if ((i % 100) == 0):
             print("Iteration " + str(i))
 
+        if ((i + 1) % (bat_per_epo * 10)) == 0:
 
-        if (i + 1) % (bat_per_epo) == 0:
-            # plotImages(X_fake, i, labels_fake)
             summarize_performance(i, g_model, d_model, latent_dim, date_start_str, num_classes)
 
             gan_new_fpath = "gan_results_iter_" + str(i) + "_" + date_start_str + ".pkl"
             train_size = dataset[0].shape[0]
             joblib.dump((train_size, loss_by_iter, generated_images_by_iter, n_batch, n_epochs), gan_new_fpath)
-        if ((i + 1) % (bat_per_epo * 10)) == 0:
             checkpoint.save(file_prefix=checkpoint_prefix)
 
     summarize_performance(n_steps, g_model, d_model, latent_dim, date_start_str, num_classes)
-    return loss_by_iter
+    return loss_by_iter, generated_images_by_iter
 
 
-if __name__ == '__main__':
-
-    # size of the latent space
-    latent_dim = 100
-    num_classes = 10
-    # create the discriminator
-    discrim_obj = Discriminator(num_classes)
-    # discriminator, discrim_opt = define_discriminator()
-    # create the generator
-    generator = Generator(latent_dim, num_classes)
-    # generator = define_generator(latent_dim)
-    # create the gan
-    # gan_model, gen_opt = define_gan(generator, discriminator)
-    gan_model = Gan(generator, discrim_obj)
-    # load image data
-    dataset = load_real_samples()
-    # train model
-    training_subset_size = 10000
-    n_epochs = 500
-    n_batch = 64
-
-    test_latent_representation, test_labels = createGeneratorInput(latent_dim, 25, num_classes)
-
-    subset_imgs, subset_labels, subset_realness_labels = selectRandomRealSamplesAndLabelAsReal(dataset, training_subset_size)
-    loss_by_iter = train(generator, discrim_obj, gan_model, (subset_imgs, subset_labels), latent_dim,
-                         test_latent_representation, test_labels, n_epochs=n_epochs, n_batch=n_batch)
+# if __name__ == '__main__':
+#
+#     # size of the latent space
+#     latent_dim = 100
+#     num_classes = 10
+#     # create the discriminator
+#     discrim_obj = Discriminator(num_classes)
+#     # discriminator, discrim_opt = define_discriminator()
+#     # create the generator
+#     generator = Generator(latent_dim, num_classes)
+#     # generator = define_generator(latent_dim)
+#     # create the gan
+#     # gan_model, gen_opt = define_gan(generator, discriminator)
+#     gan_model = Gan(generator, discrim_obj)
+#     # load image data
+#     dataset = load_real_samples()
+#     # train model
+#     training_subset_size = 10000
+#     n_epochs = 500
+#     n_batch = 64
+#
+#     test_latent_representation, test_labels = createGeneratorInput(latent_dim, 25, num_classes)
+#
+#     subset_imgs, subset_labels, subset_realness_labels = selectRandomRealSamplesAndLabelAsReal(dataset, training_subset_size)
+#     loss_by_iter = train(generator, discrim_obj, gan_model, (subset_imgs, subset_labels), latent_dim,
+#                          test_latent_representation, test_labels, n_epochs=n_epochs, n_batch=n_batch)

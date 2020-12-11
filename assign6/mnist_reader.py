@@ -1,5 +1,6 @@
 
 import numpy as np
+import idx2numpy
 
 def readMNISTData(data_file_name):
     """
@@ -14,7 +15,10 @@ def readMNISTData(data_file_name):
             num_rows - number of rows in each image
             num columns - number of columns in each image
     """
+    arr = idx2numpy.convert_from_file(data_file_name)
+    print(arr.shape)
     with open(data_file_name, 'rb') as data_file:
+
 
         # First 4 bytes are an unused magic number
         data_file.read(4)
@@ -22,8 +26,9 @@ def readMNISTData(data_file_name):
         # Next 3 4-byte sequences are number of images, number of rows in each image, and number of columns in each
         # image, in that order
         num_images = int.from_bytes(data_file.read(4), 'big')
-        num_rows = int.from_bytes(data_file.read(4), 'big')
-        num_columns = int.from_bytes(data_file.read(4), 'big')
+        num_rows = int.from_bytes(data_file.read(4), 'little')
+        num_columns = int.from_bytes(data_file.read(4), 'little')
+        print(num_images)
 
         # The size of a single image vector is the number of rows times one of the columns
         image_size = num_rows * num_columns

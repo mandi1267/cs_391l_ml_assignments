@@ -306,9 +306,10 @@ def runTrainingIterationOnBatch(real_images, real_image_labels, discriminator, g
         discriminator.getRealityAndClassLoss(fake_images, fake_image_realness_for_discriminator, fake_image_class_labels[:num_samples])
 
     # update the generator via the discriminator's error
-    generator_realness_training_loss, generator_class_training_loss = \
-        full_gan.trainAndGetRealityAndClassLoss(latent_dim_reps, fake_image_class_labels,
-                                                fake_image_realness_for_generator)
+    # TODO modified this since this worked
+    # generator_realness_training_loss, generator_class_training_loss = \
+    #     full_gan.trainAndGetRealityAndClassLoss(latent_dim_reps, fake_image_class_labels,
+    #                                             fake_image_realness_for_generator)
 
     generator_realness_training_loss, generator_class_training_loss = \
         full_gan.trainAndGetRealityAndClassLoss(latent_dim_reps, fake_image_class_labels,
@@ -357,7 +358,9 @@ def trainGanByBatches(g_model, d_model, gan_model, dataset, latent_dim, test_lat
         generated_test_images, losses = runTrainingIterationOnBatch(X_real, labels_real, d_model, g_model, gan_model,
                                 test_latent_data, test_gen_classes, latent_dim, num_classes)
         loss_by_iter[i] = losses
-        generated_images_by_iter[i] = generated_test_images
+
+        if ((i + 1) % (bat_per_epo)) == 0:
+            generated_images_by_iter[i] = generated_test_images
 
         if ((i % 10) == 0):
             print("Losses " + str(i) + ": "  + str(losses))
